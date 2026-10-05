@@ -1,0 +1,54 @@
+- type: entity
+  id: MonoChemistryTrialMachine
+  parent: BaseStructure
+  name: chemistry time trial machine
+  description: A machine built for the sole purpose of drilling every chemical recipe known to science into your skull. It does not care about your feelings.
+  components:
+  - type: Sprite
+    sprite: Structures/Machines/computers.rsi
+    drawdepth: Objects
+    layers:
+    - state: computer
+    - state: med_key
+    - state: dna
+      shader: unshaded
+  - type: Icon
+    sprite: Structures/Machines/computers.rsi
+    state: computer
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeAabb
+          bounds: "-0.25,-0.35,0.25,0.35"
+        density: 190
+        mask:
+        - MachineMask
+        layer:
+        - MachineLayer
+  - type: InteractionOutline
+  - type: Rotatable
+  - type: Anchorable
+  - type: Damageable
+    damageContainer: StructuralInorganic
+    damageModifierSet: Electronic
+  - type: Destructible
+    thresholds:
+    - trigger:
+        !type:DamageTrigger
+        damage: 100
+      behaviors:
+      - !type:PlaySoundBehavior
+        sound:
+          collection: GlassBreak
+      - !type:DoActsBehavior
+        acts: ["Destruction"]
+  - type: ChemistryTrial
+  - type: ActivatableUI
+    key: enum.ChemistryTrialUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.ChemistryTrialUiKey.Key:
+        type: ChemistryTrialBoundUserInterface
+  - type: StaticPrice
+    price: 100
