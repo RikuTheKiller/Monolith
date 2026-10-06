@@ -13,7 +13,7 @@
       time: 36000 # 10 hrs
     name: symbiote-ghostrole-name
     description: symbiote-ghostrole-desc
-    rules: ghost-role-information-freeagent-rules
+    rules: symbiote-ghostrole-rules
     mindRoles:
     - MindRoleGhostRoleFreeAgent
   - type: GhostTakeoverAvailable
