@@ -15,7 +15,7 @@
     description: symbiote-ghostrole-desc
     rules: symbiote-ghostrole-rules
     mindRoles:
-    - MindRoleGhostRoleFreeAgent
+    - MindRoleGhostRoleSymbiote
   - type: GhostTakeoverAvailable
   - type: Sprite
     drawdepth: SmallMobs # Draws under objects like tables
@@ -75,3 +75,11 @@
     enabled: false
   - type: UniversalLanguageSpeaker
   - type: CanEscapeInventory
+
+- type: entity
+  parent: MindRoleGhostRoleFreeAgent
+  id: MindRoleGhostRoleSymbiote
+  name: Ghost Role (Symbiote)
+  components:
+  - type: MindRole
+    subtype: role-subtype-symbiote
