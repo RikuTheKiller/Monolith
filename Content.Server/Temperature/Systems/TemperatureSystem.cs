@@ -215,6 +215,14 @@ public sealed partial class TemperatureSystem : EntitySystem
 
         if (args.CurrentTemperature <= idealTemp)
         {
+            // Mono start - Entities that can't take cold damage shouldn't get cold alerts
+            if (temperature.ColdDamageThreshold <= 0f)
+            {
+                _alerts.ClearAlertCategory(uid, TemperatureAlertCategory);
+                return;
+            }
+            // Mono end
+
             type = temperature.ColdAlert;
             threshold = temperature.ColdDamageThreshold;
         }
