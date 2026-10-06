@@ -1,0 +1,77 @@
+- type: entity
+  name: symbiote
+  parent: [SimpleSpaceMobBase, ProximityShootOverBase]
+  id: MobSymbiote
+  description: A slithering lump of biomass, searching for a skull to call home.
+  components:
+  - type: GhostRole
+    makeSentient: true
+    allowSpeech: false
+    allowMovement: true
+    requirements:
+    - !type:OverallPlaytimeRequirement
+      time: 36000 # 10 hrs
+    name: symbiote-ghostrole-name
+    description: symbiote-ghostrole-desc
+    rules: ghost-role-information-freeagent-rules
+    mindRoles:
+    - MindRoleGhostRoleFreeAgent
+  - type: GhostTakeoverAvailable
+  - type: Sprite
+    drawdepth: SmallMobs # Draws under objects like tables
+    sprite: _Mono/Mobs/Aliens/cortical_borer.rsi # Placeholder
+    layers:
+    - map: [ "enum.DamageStateVisualLayers.Base" ]
+      state: cortical_borer
+  - type: DamageStateVisuals
+    states:
+      Alive:
+        Base: cortical_borer
+      Dead:
+        Base: dead
+  - type: Item
+    size: Tiny
+    heldPrefix: 0
+  - type: Physics
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeCircle
+          radius: 0.2
+        density: 100
+        mask:
+        - SmallMobMask # Passes under airlocks and tables
+        layer:
+        - SmallMobLayer
+  - type: MobState
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      20: Dead
+  - type: PassiveDamage
+    allowedStates:
+    - Alive
+    damage:
+      groups:
+        Brute: -1
+        Burn: -1
+  - type: MeleeWeapon
+    soundHit:
+      path: /Audio/Effects/bite.ogg
+    angle: 0
+    animation: WeaponArcBite
+    damage: # Same total as rat servants
+      types:
+        Piercing: 8
+  - type: MovementSpeedModifier
+    baseWalkSpeed: 3
+    baseSprintSpeed: 6
+  - type: Tag
+    tags:
+    - Meat
+    - VimPilot
+  - type: Speech
+    enabled: false
+  - type: UniversalLanguageSpeaker
+  - type: CanEscapeInventory
