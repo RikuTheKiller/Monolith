@@ -2,7 +2,7 @@
   name: symbiote
   parent: [SimpleSpaceMobBase, ProximityShootOverBase]
   id: MobSymbiote
-  description: A slithering lump of biomass, searching for a skull to call home.
+  description: A sleek little slug. Its natural home environment is your skull. Eat it or leave it.
   components:
   - type: GhostRole
     makeSentient: true
