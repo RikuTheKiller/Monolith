@@ -75,6 +75,9 @@
     enabled: false
   - type: UniversalLanguageSpeaker
   - type: CanEscapeInventory
+  - type: Symbiote
+    removeOnBond:
+    - type: CanEscapeInventory # Moving would make it crawl out of its host
 
 - type: entity
   parent: MindRoleGhostRoleFreeAgent
@@ -83,3 +86,12 @@
   components:
   - type: MindRole
     subtype: role-subtype-symbiote
+
+- type: entity
+  parent: MobSymbiote
+  id: MobSymbioteDebug
+  suffix: DEBUG
+  components:
+  - type: ActionGrant
+    actions:
+    - ActionSymbioteDebugBond

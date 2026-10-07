@@ -1,0 +1,25 @@
+- type: entity
+  id: ActionSymbioteLeaveHost
+  name: Leave Host
+  description: Crawl out of your host's skull.
+  components:
+  - type: InstantAction
+    useDelay: 3
+    itemIconStyle: NoItem
+    icon: _Mono/Interface/Action/borer_eject.png # Placeholder
+    event: !type:SymbioteLeaveHostActionEvent
+
+- type: entity
+  id: ActionSymbioteDebugBond
+  name: Bond (Debug)
+  description: Instantly bond with a valid host, without being eaten.
+  components:
+  - type: EntityTargetAction
+    whitelist:
+      components:
+      - HumanoidAppearance
+    canTargetSelf: false
+    interactOnMiss: false
+    itemIconStyle: NoItem
+    icon: _Mono/Interface/Action/borer_infest.png # Placeholder
+    event: !type:SymbioteDebugBondActionEvent
