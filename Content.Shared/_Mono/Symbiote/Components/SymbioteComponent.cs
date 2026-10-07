@@ -1,3 +1,4 @@
+using Content.Shared.Alert;
 using Robust.Shared.Audio;
 using Robust.Shared.GameStates;
 using Robust.Shared.Prototypes;
@@ -52,6 +53,53 @@ public sealed partial class SymbioteComponent : Component
     /// </summary>
     [DataField, AutoNetworkedField]
     public EntityUid? LeaveHostActionEntity;
+
+    /// <summary>
+    /// What the symbiote's abilities run on. Can briefly go out of bounds, since it only gets clamped once per tick.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public float Chemicals;
+
+    /// <summary>
+    /// <see cref="Chemicals"/>, but within bounds.
+    /// </summary>
+    public float ClampedChemicals => Math.Clamp(Chemicals, 0f, MaxChemicals);
+
+    [DataField]
+    public float MaxChemicals = 300f;
+
+    /// <summary>
+    /// Chemicals gained per second inside a living host.
+    /// </summary>
+    [DataField]
+    public float ChemicalRegen = 1f;
+
+    /// <summary>
+    /// Chemicals lost per second anywhere other than inside a living host.
+    /// </summary>
+    [DataField]
+    public float ChemicalDrain = 5f;
+
+    /// <summary>
+    /// How long regeneration pauses for after losing chemicals for any reason.
+    /// </summary>
+    [DataField]
+    public TimeSpan ChemicalRegenLockout = TimeSpan.FromSeconds(3);
+
+    [DataField, AutoNetworkedField, AutoPausedField]
+    public TimeSpan ChemicalRegenLockoutEnd;
+
+    [DataField]
+    public TimeSpan ChemicalUpdateInterval = TimeSpan.FromSeconds(0.1);
+
+    /// <summary>
+    /// Networked so the client regenerates and drains chemicals in step with the server.
+    /// </summary>
+    [DataField, AutoNetworkedField, AutoPausedField]
+    public TimeSpan NextChemicalUpdate;
+
+    [DataField]
+    public ProtoId<AlertPrototype> ChemicalsAlert = "SymbioteChemicals";
 
     /// <summary>
     /// Played when a hostless symbiote nudges someone to get their attention.

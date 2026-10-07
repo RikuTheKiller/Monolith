@@ -92,6 +92,8 @@
   id: MobSymbioteDebug
   suffix: DEBUG
   components:
+  - type: Symbiote
+    chemicals: 300
   - type: ActionGrant
     actions:
     - ActionSymbioteDebugBond

@@ -5,6 +5,10 @@ symbiote-ghostrole-rules = You are a [color=#9999ff][bold]Symbiote[/bold][/color
     Your host's allegiances and grudges are yours. If they're killed, you may kill their killer, even after their death.
     You're not obligated to find a new host. Without one, you're unaffiliated, and follow standard engagement rules.
 
+## Alerts
+alerts-symbiote-chemicals-name = Chemicals
+alerts-symbiote-chemicals-desc = Corrosive cyan stuff that lets you do other stuff.
+
 ## Roles
 role-subtype-symbiote = Symbiote
 

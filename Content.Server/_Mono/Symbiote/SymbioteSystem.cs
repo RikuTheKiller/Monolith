@@ -9,6 +9,7 @@ using Content.Server.Temperature.Systems;
 using Content.Shared._Mono.Symbiote;
 using Content.Shared._Mono.Symbiote.Components;
 using Content.Shared.Actions;
+using Content.Shared.Alert;
 using Content.Shared.Body.Part;
 using Content.Shared.Body.Systems;
 using Content.Shared.Interaction.Events;
@@ -22,6 +23,7 @@ namespace Content.Server._Mono.Symbiote;
 public sealed partial class SymbioteSystem : SharedSymbioteSystem
 {
     [Dependency] private ActionContainerSystem _actionContainer = default!;
+    [Dependency] private AlertsSystem _alerts = default!;
     [Dependency] private SharedBodySystem _body = default!;
     [Dependency] private FlammableSystem _flammable = default!;
     [Dependency] private FoodSystem _food = default!;
@@ -53,6 +55,8 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
         // Created once up front, so bonding can be predicted without spawning an action
         _actionContainer.EnsureAction(ent, ref ent.Comp.LeaveHostActionEntity, ent.Comp.LeaveHostAction);
         Dirty(ent);
+
+        _alerts.ShowAlert(ent, ent.Comp.ChemicalsAlert);
     }
 
     protected override LocId? GetBodyHostProblem(EntityUid target)

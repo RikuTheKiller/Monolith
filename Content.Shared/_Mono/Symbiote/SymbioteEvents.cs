@@ -12,6 +12,12 @@ public sealed partial class SymbioteLeaveHostActionEvent : InstantActionEvent;
 public sealed partial class SymbioteDebugBondActionEvent : EntityTargetActionEvent;
 
 /// <summary>
+/// Raised on a symbiote that couldn't pay for something, like upkeep, so all of its abilities with upkeep should end.
+/// </summary>
+[ByRefEvent]
+public record struct SymbioteChemicalsDepletedEvent;
+
+/// <summary>
 /// Raised when someone finishes eating a symbiote, or feeding it to someone else.
 /// </summary>
 [Serializable, NetSerializable]
