@@ -2,6 +2,7 @@ using System.Linq;
 using Content.Server._NF.Salvage;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.Body.Components;
+using Content.Server.Chat.Systems;
 using Content.Server.Medical;
 using Content.Server.Nutrition.EntitySystems;
 using Content.Server.Temperature.Components;
@@ -38,6 +39,7 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
 
         SubscribeLocalEvent<SymbioteComponent, MapInitEvent>(OnMapInit);
         SubscribeLocalEvent<SymbioteComponent, MobStateChangedEvent>(OnMobStateChanged);
+        SubscribeLocalEvent<SymbioteComponent, CheckTargetedSpeechEvent>(OnCheckTargetedSpeech);
         SubscribeLocalEvent<SymbioteComponent, AttackAttemptEvent>(OnAttackAttempt);
         SubscribeLocalEvent<SymbioteComponent, ModifyChangedTemperatureEvent>(OnTemperatureChange);
         SubscribeLocalEvent<SymbioteComponent, TryIgniteEvent>(OnIgniteAttempt);
@@ -145,6 +147,16 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
     }
 
     #endregion
+
+    private void OnCheckTargetedSpeech(Entity<SymbioteComponent> ent, ref CheckTargetedSpeechEvent args)
+    {
+        // A bonded symbiote whispers to its host, and nobody else hears it
+        if (ent.Comp.Host is not { } host)
+            return;
+
+        args.Targets.Add(ent);
+        args.Targets.Add(host);
+    }
 
     private void OnMobStateChanged(Entity<SymbioteComponent> ent, ref MobStateChangedEvent args)
     {
