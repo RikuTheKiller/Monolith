@@ -12,10 +12,15 @@ public sealed partial class SymbioteLeaveHostActionEvent : InstantActionEvent;
 public sealed partial class SymbioteDebugBondActionEvent : EntityTargetActionEvent;
 
 /// <summary>
-/// Raised on a symbiote that couldn't pay for something, like upkeep, so all of its abilities with upkeep should end.
+/// Toggles whichever symbiote ability the action belongs to.
+/// </summary>
+public sealed partial class SymbioteAbilityActionEvent : InstantActionEvent;
+
+/// <summary>
+/// Raised on an ability's action when it gets activated or deactivated.
 /// </summary>
 [ByRefEvent]
-public record struct SymbioteChemicalsDepletedEvent;
+public readonly record struct SymbioteAbilityToggledEvent(EntityUid Symbiote, EntityUid Host, bool Active);
 
 /// <summary>
 /// Raised when someone finishes eating a symbiote, or feeding it to someone else.

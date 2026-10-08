@@ -312,6 +312,7 @@
 
 - type: emote
   id: Gasp
+  category: Vocal # Mono
   name: chat-emote-name-gasp
   whitelist:
     components:
@@ -325,6 +326,7 @@
 
 - type: emote
   id: DefaultDeathgasp
+  category: Vocal # Mono
   name: chat-emote-name-deathgasp
   icon: Interface/Emotes/deathgasp.png
   whitelist:
@@ -340,6 +342,7 @@
 
 - type: emote
   id: MonkeyDeathgasp
+  category: Vocal # Mono
   name: chat-emote-name-deathgasp
   icon: Interface/Emotes/deathgasp.png
   chatMessages: ["chat-emote-msg-deathgasp-monkey"]

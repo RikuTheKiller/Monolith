@@ -92,6 +92,12 @@ public partial class ChatSystem
         bool forceEmote = false
         )
     {
+        // Mono start - Decide whose body carries it out, and whether that body's mouth works for whoever means to do it
+        var speaker = source;
+        source = RedirectAndLog(speaker, InGameICChatType.Emote, null, [emote]);
+        var muted = !CanUseMouth(source, speaker, out _);
+        // Mono end
+
         if (!forceEmote && !AllowedToUseEmote(source, emote))
             return;
 
@@ -101,11 +107,12 @@ public partial class ChatSystem
             // not all emotes are loc'd, but for the ones that are we pass in entity
             var action = Loc.GetString(_random.Pick(emote.ChatMessages), ("entity", source));
             var language = _language.GetLanguage(source); // Einstein Engines - Language
-            SendEntityEmote(source, action, range, nameOverride, language, hideLog: hideLog, checkEmote: false, ignoreActionBlocker: ignoreActionBlocker); // Einstein Engines - Language
+            SendEntityEmote(source, action, range, nameOverride, language, hideLog: hideLog, ignoreActionBlocker: ignoreActionBlocker); // Einstein Engines - Language // Mono - No emotes instead of checkEmote: false
         }
 
         // do the rest of emote event logic here
-        TryEmoteWithoutChat(source, emote, ignoreActionBlocker);
+        if (!muted || !emote.Category.HasFlag(EmoteCategory.Vocal)) // Mono - Vocal emotes get pantomimed while muted
+            TryEmoteWithoutChat(source, emote, ignoreActionBlocker);
     }
 
     /// <summary>
@@ -166,17 +173,18 @@ public partial class ChatSystem
     /// Checks if a valid emote was typed, to play sounds and etc and invokes an event.
     /// </summary>
     /// <param name="uid"></param>
-    /// <param name="textInput"></param>
-    private void TryEmoteChatInput(EntityUid uid, string textInput)
+    /// <param name="emotes">The emotes the text was decided to perform.</param>
+    /// <param name="muted">Whether vocal emotes get pantomimed.</param>
+    private void TryEmoteChatInput(EntityUid uid, IReadOnlyList<EmotePrototype> emotes, bool muted = false) // Mono - The emotes instead of the text, and muted
     {
-        var actionTrimmedLower = TrimPunctuation(textInput.ToLower());
-        if (!_wordEmoteDict.TryGetValue(actionTrimmedLower, out var emotes)) // DeltaV, renames to emotes
-            return;
-
         bool validEmote = false; // DeltaV - Multiple emotes for the same trigger
         foreach (var emote in emotes)
         {
             if (!AllowedToUseEmote(uid, emote))
+                continue;
+
+            // Mono - Vocal emotes get pantomimed while muted
+            if (muted && emote.Category.HasFlag(EmoteCategory.Vocal))
                 continue;
 
             InvokeEmoteEvent(uid, emote);
@@ -185,6 +193,16 @@ public partial class ChatSystem
 
         if (!validEmote) // DeltaV
             return;
+    }
+
+    // Mono start - Moved out of TryEmoteChatInput, so it's decided once before the emotes are passed along
+    /// <summary>
+    /// Gets the emotes that typing this text as an emote performs, if any.
+    /// </summary>
+    private IReadOnlyList<EmotePrototype> GetChatInputEmotes(string textInput)
+    {
+        var actionTrimmedLower = TrimPunctuation(textInput.ToLower());
+        return _wordEmoteDict.TryGetValue(actionTrimmedLower, out var emotes) ? emotes : []; // DeltaV, renames to emotes
 
         static string TrimPunctuation(string textInput)
         {
@@ -203,36 +221,8 @@ public partial class ChatSystem
             return textInput[trimStart..trimEnd];
         }
     }
-    /// <summary>
-    /// Checks if we can use this emote based on the emotes whitelist, blacklist, and availibility to the entity.
-    /// </summary>
-    /// <param name="source">The entity that is speaking</param>
-    /// <param name="emote">The emote being used</param>
-    /// <returns></returns>
-    private bool AllowedToUseEmote(EntityUid source, EmotePrototype emote)
-    {
-        // If emote is in AllowedEmotes, it will bypass whitelist and blacklist
-        if (TryComp<SpeechComponent>(source, out var speech) &&
-            speech.AllowedEmotes.Contains(emote.ID))
-        {
-            return true;
-        }
-
-        // Check the whitelist and blacklist
-        if (_whitelistSystem.IsWhitelistFail(emote.Whitelist, source) ||
-            _whitelistSystem.IsBlacklistPass(emote.Blacklist, source))
-        {
-            return false;
-        }
-
-        // Check if the emote is available for all
-        if (!emote.Available)
-        {
-            return false;
-        }
-
-        return true;
-    }
+    // Mono end
+    // Mono - AllowedToUseEmote moved to SharedChatSystem, so the client can check it too
 
 
     private void InvokeEmoteEvent(EntityUid uid, EmotePrototype proto)

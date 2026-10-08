@@ -94,7 +94,6 @@ public sealed partial class ChatSanitizationManager : IChatSanitizationManager
     ];
 
     [Dependency] private IConfigurationManager _configurationManager = default!;
-    [Dependency] private ILocalizationManager _loc = default!;
 
     private bool _doSanitize;
 
@@ -107,16 +106,14 @@ public sealed partial class ChatSanitizationManager : IChatSanitizationManager
     ///     Remove the shorthands from the message, returning the last one found as the emote
     /// </summary>
     /// <param name="message">The pre-sanitized message</param>
-    /// <param name="speaker">The speaker</param>
     /// <param name="sanitized">The sanitized message with shorthands removed</param>
-    /// <param name="emote">The localized emote</param>
+    /// <param name="emoteKey">The localization key of the emote, to be worded for whoever ends up doing it</param>
     /// <returns>True if emote has been sanitized out</returns>
     public bool TrySanitizeEmoteShorthands(string message,
-        EntityUid speaker,
         out string sanitized,
-        [NotNullWhen(true)] out string? emote)
+        [NotNullWhen(true)] out string? emoteKey) // Mono - The key instead of the worded emote, and no speaker
     {
-        emote = null;
+        emoteKey = null; // Mono
         sanitized = message;
 
         if (!_doSanitize)
@@ -125,7 +122,7 @@ public sealed partial class ChatSanitizationManager : IChatSanitizationManager
         // -1 is just a canary for nothing found yet
         var lastEmoteIndex = -1;
 
-        foreach (var (r, emoteKey) in ShorthandToEmote)
+        foreach (var (r, key) in ShorthandToEmote) // Mono - key
         {
             // We're using sanitized as the original message until the end so that we can make sure the indices of
             // the emotes are accurate.
@@ -137,14 +134,14 @@ public sealed partial class ChatSanitizationManager : IChatSanitizationManager
             if (lastMatch.Index > lastEmoteIndex)
             {
                 lastEmoteIndex = lastMatch.Index;
-                emote = _loc.GetString(emoteKey, ("ent", speaker));
+                emoteKey = key; // Mono
             }
 
             message = r.Replace(message, string.Empty);
         }
 
         sanitized = message.Trim();
-        return emote is not null;
+        return emoteKey is not null; // Mono
     }
 
     private static (Regex regex, string emoteKey) Entry(string shorthand, string emoteKey)

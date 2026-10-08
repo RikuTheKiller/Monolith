@@ -17,9 +17,7 @@ namespace Content.Server.Radio.EntitySystems;
 
 public sealed partial class HeadsetSystem : SharedHeadsetSystem
 {
-    [Dependency] private INetManager _netMan = default!;
     [Dependency] private RadioSystem _radio = default!;
-    [Dependency] private LanguageSystem _language = default!;
     [Dependency] private HeadsetPunishmentSystem _punishment = default!;
 
     public override void Initialize()
@@ -107,26 +105,20 @@ public sealed partial class HeadsetSystem : SharedHeadsetSystem
 
     private void OnHeadsetReceive(EntityUid uid, HeadsetComponent component, ref RadioReceiveEvent args)
     {
-        if (TryComp(Transform(uid).ParentUid, out ActorComponent? actor))
-        {
-            // Einstein Engines - Language begin
-            var canUnderstand = _language.CanUnderstand(Transform(uid).ParentUid, args.Language.ID);
-            var msg = new MsgChatMessage
-            {
-                Message = canUnderstand ? args.OriginalChatMsg : args.LanguageObfuscatedChatMsg
-            };
-            _netMan.ServerSendMessage(msg, actor.PlayerSession.Channel);
+        // Mono start - The message reached the wearer's ears, so anything hearing through them hears it too
+        var wearer = Transform(uid).ParentUid;
 
-            // Einstein Engines - Language end
+        var heardEv = new RadioHeardEvent(uid, args);
+        RaiseLocalEvent(wearer, ref heardEv);
 
-            // Mono - Borers begin
-            var ev = new RadioMessageHeardEvent(uid, msg, args.Channel);
-            RaiseLocalEvent(Transform(uid).ParentUid, ref ev);
-            // Mono - Borers end
+        // Moved into RadioSystem.HearRadio
+        if (_radio.HearRadio(wearer, uid, args) is not { } msg)
+            return;
+        // Mono end
 
-            // Send radio noise event to client
-            var radioNoiseEvent = new RadioNoiseEvent(GetNetEntity(uid), args.Channel.ID);
-            RaiseNetworkEvent(radioNoiseEvent, actor.PlayerSession);
-        }
+        // Mono - Borers begin
+        var ev = new RadioMessageHeardEvent(uid, msg, args.Channel);
+        RaiseLocalEvent(wearer, ref ev); // Mono - wearer
+        // Mono - Borers end
     }
 }

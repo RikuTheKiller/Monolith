@@ -73,8 +73,14 @@
     - VimPilot
   - type: Speech
     enabled: false
+  - type: LanguageSpeaker
   - type: UniversalLanguageSpeaker
   - type: CanEscapeInventory
+  - type: Nudge
+  - type: ActionGrant
+    actions:
+    - ActionSymbioteLeaveHost
+    - ActionSymbioteTendrilMouth
   - type: Symbiote
     removeOnBond:
     - type: CanEscapeInventory # Moving would make it crawl out of its host
@@ -96,4 +102,4 @@
     chemicals: 300
   - type: ActionGrant
     actions:
-    - ActionSymbioteDebugBond
+    - ActionSymbioteDebugBond # Added to the parent's actions

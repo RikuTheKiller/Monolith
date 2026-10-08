@@ -1,19 +1,19 @@
 using System.Linq;
+using Content.Server._Mono.Radio;
 using Content.Server._NF.Salvage;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.Body.Components;
 using Content.Server.Chat.Systems;
 using Content.Server.Medical;
 using Content.Server.Nutrition.EntitySystems;
+using Content.Server.Radio.EntitySystems;
 using Content.Server.Temperature.Components;
 using Content.Server.Temperature.Systems;
+using Content.Shared.Chat;
 using Content.Shared._Mono.Symbiote;
 using Content.Shared._Mono.Symbiote.Components;
-using Content.Shared.Actions;
-using Content.Shared.Alert;
 using Content.Shared.Body.Part;
 using Content.Shared.Body.Systems;
-using Content.Shared.Interaction.Events;
 using Content.Shared.Mobs;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Polymorph;
@@ -23,12 +23,11 @@ namespace Content.Server._Mono.Symbiote;
 
 public sealed partial class SymbioteSystem : SharedSymbioteSystem
 {
-    [Dependency] private ActionContainerSystem _actionContainer = default!;
-    [Dependency] private AlertsSystem _alerts = default!;
     [Dependency] private SharedBodySystem _body = default!;
     [Dependency] private FlammableSystem _flammable = default!;
     [Dependency] private FoodSystem _food = default!;
     [Dependency] private MobStateSystem _mobState = default!;
+    [Dependency] private RadioSystem _radio = default!;
     [Dependency] private TemperatureSystem _temperature = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private VomitSystem _vomit = default!;
@@ -37,10 +36,8 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
     {
         base.Initialize();
 
-        SubscribeLocalEvent<SymbioteComponent, MapInitEvent>(OnMapInit);
         SubscribeLocalEvent<SymbioteComponent, MobStateChangedEvent>(OnMobStateChanged);
         SubscribeLocalEvent<SymbioteComponent, CheckTargetedSpeechEvent>(OnCheckTargetedSpeech);
-        SubscribeLocalEvent<SymbioteComponent, AttackAttemptEvent>(OnAttackAttempt);
         SubscribeLocalEvent<SymbioteComponent, ModifyChangedTemperatureEvent>(OnTemperatureChange);
         SubscribeLocalEvent<SymbioteComponent, TryIgniteEvent>(OnIgniteAttempt);
 
@@ -48,18 +45,10 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
         SubscribeLocalEvent<SymbioteHostComponent, BeingGibbedEvent>(OnHostGibbed);
         SubscribeLocalEvent<SymbioteHostComponent, PolymorphedEvent>(OnHostPolymorphed);
         SubscribeLocalEvent<SymbioteHostComponent, OnTemperatureChangeEvent>(OnHostTemperatureChange);
+        SubscribeLocalEvent<SymbioteHostComponent, RadioHeardEvent>(OnHostRadioHeard);
     }
 
     #region Bonding
-
-    private void OnMapInit(Entity<SymbioteComponent> ent, ref MapInitEvent args)
-    {
-        // Created once up front, so bonding can be predicted without spawning an action
-        _actionContainer.EnsureAction(ent, ref ent.Comp.LeaveHostActionEntity, ent.Comp.LeaveHostAction);
-        Dirty(ent);
-
-        _alerts.ShowAlert(ent, ent.Comp.ChemicalsAlert);
-    }
 
     protected override LocId? GetBodyHostProblem(EntityUid target)
     {
@@ -131,6 +120,13 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
             _transform.DropNextTo(ent.Comp.Symbiote.Value, args.NewEntity); // The old body is already in the paused map
     }
 
+    private void OnHostRadioHeard(Entity<SymbioteHostComponent> ent, ref RadioHeardEvent args)
+    {
+        // Hears whatever reaches its host's ears, but understands it with its own brain
+        if (ent.Comp.Symbiote is { } symbiote)
+            _radio.HearRadio(symbiote, args.Radio, args.Message);
+    }
+
     private void OnHostTemperatureChange(Entity<SymbioteHostComponent> ent, ref OnTemperatureChangeEvent args)
     {
         if (ent.Comp.Symbiote is { } symbiote)
@@ -150,7 +146,9 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
 
     private void OnCheckTargetedSpeech(Entity<SymbioteComponent> ent, ref CheckTargetedSpeechEvent args)
     {
-        // A bonded symbiote whispers to its host, and nobody else hears it
+        // A bonded symbiote whispers to its host, and nobody else hears it. Emotes aren't speech.
+        args.ChatTypeIgnore.Add(InGameICChatType.Emote);
+
         if (ent.Comp.Host is not { } host)
             return;
 
@@ -173,13 +171,6 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
 
         // Pretty mild and mostly cosmetic
         _vomit.Vomit(host, -10, -10);
-    }
-
-    private void OnAttackAttempt(Entity<SymbioteComponent> ent, ref AttackAttemptEvent args)
-    {
-        // Abilities are the only way to fight from inside a host
-        if (ent.Comp.Host != null)
-            args.Cancel();
     }
 
     private void OnTemperatureChange(Entity<SymbioteComponent> ent, ref ModifyChangedTemperatureEvent args)

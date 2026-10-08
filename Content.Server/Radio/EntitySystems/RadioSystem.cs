@@ -73,23 +73,40 @@ public sealed partial class RadioSystem : EntitySystem
 
     private void OnIntrinsicReceive(EntityUid uid, IntrinsicRadioReceiverComponent component, ref RadioReceiveEvent args)
     {
-        if (TryComp(uid, out ActorComponent? actor))
-        {
-            // Einstein Engines - Languages begin
-            var listener = component.Owner;
-            var msg = args.OriginalChatMsg;
-
-            if (listener != null && !_language.CanUnderstand(listener, args.Language.ID))
-                msg = args.LanguageObfuscatedChatMsg;
-
-            _netMan.ServerSendMessage(new MsgChatMessage { Message = msg }, actor.PlayerSession.Channel);
-            // Einstein Engines - Languages end
-
-            // Send radio noise event to client for IPCs
-            var radioNoiseEvent = new RadioNoiseEvent(GetNetEntity(uid), args.Channel.ID);
-            RaiseNetworkEvent(radioNoiseEvent, actor.PlayerSession);
-        }
+        HearRadio(uid, uid, args); // Mono - Moved into HearRadio
     }
+
+    // Mono start - Moved out of OnIntrinsicReceive, so anything that heard a radio message can understand it the same way
+    /// <summary>
+    /// Has the listener hear a radio message that reached them, understanding it as well as they can.
+    /// </summary>
+    /// <param name="listener">Whoever heard the message.</param>
+    /// <param name="radio">The radio they heard it through.</param>
+    /// <param name="message">The message, in every form it can be understood in.</param>
+    /// <returns>The message the way the listener understood it, if they're a player who got to see it.</returns>
+    public MsgChatMessage? HearRadio(EntityUid listener, EntityUid radio, RadioReceiveEvent message)
+    {
+        if (!TryComp(listener, out ActorComponent? actor))
+            return null;
+
+        // Einstein Engines - Languages begin
+        var msg = new MsgChatMessage
+        {
+            Message = _language.CanUnderstand(listener, message.Language.ID)
+                ? message.OriginalChatMsg
+                : message.LanguageObfuscatedChatMsg,
+        };
+
+        _netMan.ServerSendMessage(msg, actor.PlayerSession.Channel);
+        // Einstein Engines - Languages end
+
+        // Send radio noise event to client
+        var radioNoiseEvent = new RadioNoiseEvent(GetNetEntity(radio), message.Channel.ID);
+        RaiseNetworkEvent(radioNoiseEvent, actor.PlayerSession);
+
+        return msg;
+    }
+    // Mono end
 
     /// <summary>
     /// Send radio message to all active radio listeners

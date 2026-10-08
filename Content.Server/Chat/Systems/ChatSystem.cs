@@ -8,6 +8,7 @@ using Content.Server.Chat.Managers;
 using Content.Server.Discord.DiscordLink;
 using Content.Server.GameTicking;
 using Content.Server._EinsteinEngines.Language; // Einstein Engines - Language
+using Content.Server._Mono.Chat; // Mono
 using Content.Server.Speech; // Einstein Engines - Language
 using Content.Server.Players.RateLimiting;
 using Content.Server.Speech.Prototypes;
@@ -18,6 +19,7 @@ using Content.Shared.ActionBlocker;
 using Content.Shared.Administration;
 using Content.Shared.CCVar;
 using Content.Shared.Chat;
+using Content.Shared.Chat.Prototypes; // Mono
 using Content.Shared._Starlight.CollectiveMind; // Goobstation - Starlight collective mind port
 using Content.Shared.Database;
 using Content.Shared.Examine;
@@ -27,6 +29,7 @@ using Content.Shared.IdentityManagement;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Players;
 using Content.Shared.Players.RateLimiting;
+using Content.Shared.Popups; // Mono
 using Content.Shared.Radio;
 using Content.Shared.Station.Components;
 using Content.Shared.Whitelist;
@@ -65,11 +68,11 @@ public sealed partial class ChatSystem : SharedChatSystem
     [Dependency] private MobStateSystem _mobStateSystem = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private ReplacementAccentSystem _wordreplacement = default!;
-    [Dependency] private EntityWhitelistSystem _whitelistSystem = default!;
     [Dependency] private ExamineSystemShared _examineSystem = default!;
     [Dependency] private DiscordChatLink _discordLink = default!;
     [Dependency] private LanguageSystem _language = default!; // Einstein Engines - Language
     [Dependency] private CollectiveMindUpdateSystem _collectiveMind = default!; // Goobstation - Starlight collective mind port
+    [Dependency] private SharedPopupSystem _popup = default!; // Mono
 
     public const int VoiceRange = 10; // how far voice goes in world units
     public const int WhisperClearRange = 2; // how far whisper goes while still being understandable, in world units
@@ -210,6 +213,57 @@ public sealed partial class ChatSystem : SharedChatSystem
         if (!CanSendInGame(message, shell, player))
             return;
 
+        // Mono start - Split the message into what's said and any emote in it first, since they're separate actions.
+        // Who does each is decided separately afterwards. Moved up from below.
+        if (desiredType == InGameICChatType.Speak && message.StartsWith(LocalPrefix))
+        {
+            // prevent radios and remove prefix.
+            checkRadioPrefix = false;
+            message = message[1..];
+        }
+
+        bool shouldCapitalize = (desiredType != InGameICChatType.Emote);
+        bool shouldPunctuate = _configurationManager.GetCVar(CCVars.ChatPunctuation);
+        // Capitalizing the word I only happens in English, so we check language here
+        bool shouldCapitalizeTheWordI = (!CultureInfo.CurrentCulture.IsNeutralCulture && CultureInfo.CurrentCulture.Parent.Name == "en")
+            || (CultureInfo.CurrentCulture.IsNeutralCulture && CultureInfo.CurrentCulture.Name == "en");
+
+        message = SanitizeInGameICMessage(source, message, out var emoteKey, shouldCapitalize, shouldPunctuate, shouldCapitalizeTheWordI);
+
+        // Was there an emote in the message? If so, send it.
+        if (player != null && emoteKey != null)
+            TrySendMessageEmote(source, emoteKey, range, nameOverride, ignoreActionBlocker);
+
+        // This can happen if the entire string is sanitized out.
+        if (string.IsNullOrEmpty(message))
+            return;
+
+        // Which emotes typing this does, if it's an emote. Decided here once, for everything after to go by.
+        var emotes = desiredType == InGameICChatType.Emote ? GetChatInputEmotes(message) : [];
+
+        // Decide whose body carries it out, like a symbiote using its host's mouth
+        var speaker = source;
+        source = RedirectAndLog(speaker, desiredType, message, emotes);
+
+        // Still in whatever language the original speaker picked
+        if (source != speaker)
+            languageOverride ??= _language.GetLanguage(speaker);
+
+        // Speaking needs a mouth that works for whoever's speaking. Emotes without one get their vocal parts pantomimed.
+        var muted = false;
+        if (desiredType != InGameICChatType.CollectiveMind && !CanUseMouth(source, speaker, out var mouthBlockedReason))
+        {
+            if (desiredType != InGameICChatType.Emote)
+            {
+                if (mouthBlockedReason is { } reason)
+                    _popup.PopupEntity(Loc.GetString(reason), speaker, speaker);
+                return;
+            }
+
+            muted = true;
+        }
+        // Mono end
+
         ignoreActionBlocker = CheckIgnoreSpeechBlocker(source, ignoreActionBlocker);
 
         // this method is a disaster
@@ -225,32 +279,7 @@ public sealed partial class ChatSystem : SharedChatSystem
             _chatManager.EnsurePlayer(player.UserId).AddEntity(GetNetEntity(source));
         }
 
-        if (desiredType == InGameICChatType.Speak && message.StartsWith(LocalPrefix))
-        {
-            // prevent radios and remove prefix.
-            checkRadioPrefix = false;
-            message = message[1..];
-        }
-
         var language = languageOverride ?? _language.GetLanguage(source); // Einstein Engines - Language
-
-        bool shouldCapitalize = (desiredType != InGameICChatType.Emote);
-        bool shouldPunctuate = _configurationManager.GetCVar(CCVars.ChatPunctuation);
-        // Capitalizing the word I only happens in English, so we check language here
-        bool shouldCapitalizeTheWordI = (!CultureInfo.CurrentCulture.IsNeutralCulture && CultureInfo.CurrentCulture.Parent.Name == "en")
-            || (CultureInfo.CurrentCulture.IsNeutralCulture && CultureInfo.CurrentCulture.Name == "en");
-
-        message = SanitizeInGameICMessage(source, message, out var emoteStr, shouldCapitalize, shouldPunctuate, shouldCapitalizeTheWordI);
-
-        // Was there an emote in the message? If so, send it.
-        if (player != null && emoteStr != message && emoteStr != null)
-        {
-            SendEntityEmote(source, emoteStr, range, nameOverride, language, ignoreActionBlocker); // Einstein Engines - Language
-        }
-
-        // This can happen if the entire string is sanitized out.
-        if (string.IsNullOrEmpty(message))
-            return;
 
         // This is really terrible. I hate myself for doing this. [-] Einstein Engines - Languages
         if (language.SpeechOverride.ChatTypeOverride is { } chatTypeOverride)
@@ -295,10 +324,65 @@ public sealed partial class ChatSystem : SharedChatSystem
                 SendEntityWhisper(source, message, range, null, nameOverride, language, hideLog, ignoreActionBlocker); // Einstein Engines - Language
                 break;
             case InGameICChatType.Emote:
-                SendEntityEmote(source, message, range, nameOverride, language, hideLog: hideLog, ignoreActionBlocker: ignoreActionBlocker); // Einstein Engines - Language
+                SendEntityEmote(source, message, range, nameOverride, language, hideLog: hideLog, emotes: emotes, ignoreActionBlocker: ignoreActionBlocker, muted: muted); // Einstein Engines - Language // Mono - emotes, muted
                 break;
         }
     }
+
+    // Mono start
+    /// <summary>
+    /// Sends the emote that was part of a message, like ":)" turning into smiling, as its own action.
+    /// </summary>
+    /// <param name="speaker">Who sent the message.</param>
+    /// <param name="emoteKey">The localization key of the emote.</param>
+    /// <param name="range">How far the emote reaches.</param>
+    /// <param name="nameOverride">The name to show for whoever does it, if any.</param>
+    /// <param name="ignoreActionBlocker">Whether it happens even if they couldn't normally emote.</param>
+    private void TrySendMessageEmote(EntityUid speaker, string emoteKey, ChatTransmitRange range, string? nameOverride, bool ignoreActionBlocker)
+    {
+        // Worded for the speaker while deciding who does it, since that's who means to do it
+        var intent = Loc.GetString(emoteKey, ("ent", speaker));
+        var emotes = GetChatInputEmotes(intent);
+        var source = RedirectAndLog(speaker, InGameICChatType.Emote, intent, emotes);
+        var muted = !CanUseMouth(source, speaker, out _);
+
+        // Worded for whoever's body actually does it
+        var emote = Loc.GetString(emoteKey, ("ent", source));
+        SendEntityEmote(source, emote, range, nameOverride, _language.GetLanguage(source), emotes: emotes, ignoreActionBlocker: ignoreActionBlocker, muted: muted); // Einstein Engines - Language
+    }
+
+    /// <summary>
+    /// Decides whose body carries out what someone means to say or emote, and logs it if it isn't their own.
+    /// </summary>
+    /// <param name="speaker">Who means to say or emote it.</param>
+    /// <param name="type">How it's being said, or whether it's an emote.</param>
+    /// <param name="message">What's being said, or the emote being typed, if any.</param>
+    /// <param name="emotes">The emotes it performs, whether typed or performed directly.</param>
+    /// <returns>Whose body carries it out.</returns>
+    private EntityUid RedirectAndLog(EntityUid speaker, InGameICChatType type, string? message, IReadOnlyList<EmotePrototype> emotes)
+    {
+        var source = Redirect(speaker, type, message, emotes);
+        if (source != speaker)
+            _adminLogger.Add(LogType.Chat, LogImpact.Low, $"{ToPrettyString(speaker):speaker} spoke through {ToPrettyString(source):source}: {message ?? string.Join(", ", emotes.Select(emote => emote.ID))}");
+
+        return source;
+    }
+
+    /// <summary>
+    /// Whether a body's mouth works for whoever's trying to use it, to speak or make vocal emotes.
+    /// </summary>
+    /// <param name="body">Whose mouth it is.</param>
+    /// <param name="user">Who's trying to use it.</param>
+    /// <param name="reason">Why it doesn't work, if it doesn't and there's a reason to show.</param>
+    private bool CanUseMouth(EntityUid body, EntityUid user, out LocId? reason)
+    {
+        var ev = new MouthUseAttemptEvent(user);
+        RaiseLocalEvent(body, ref ev);
+
+        reason = ev.Reason;
+        return !ev.Blocked;
+    }
+    // Mono end
 
     public void TrySendInGameOOCMessage(
         EntityUid source,
@@ -791,9 +875,10 @@ public sealed partial class ChatSystem : SharedChatSystem
         string? nameOverride,
         LanguagePrototype language,
         bool hideLog = false,
-        bool checkEmote = true,
+        IReadOnlyList<EmotePrototype>? emotes = null, // Mono - The emotes it was decided to perform, instead of checking the text again
         bool ignoreActionBlocker = false,
-        NetUserId? author = null
+        NetUserId? author = null,
+        bool muted = false // Mono
         )
     {
         if (!_actionBlocker.CanEmote(source) && !ignoreActionBlocker)
@@ -809,8 +894,8 @@ public sealed partial class ChatSystem : SharedChatSystem
             ("entity", ent),
             ("message", FormattedMessage.RemoveMarkupOrThrow(action)));
 
-        if (checkEmote)
-            TryEmoteChatInput(source, action);
+        if (emotes != null) // Mono - emotes
+            TryEmoteChatInput(source, emotes, muted); // Mono - emotes, muted
         SendInVoiceRange(ChatChannel.Emotes, name, action, wrappedMessage, obfuscated: "", obfuscatedWrappedMessage: "", source, range, author); // Einstein Engines - Language
         if (!hideLog)
             if (name != Name(source))
@@ -990,14 +1075,14 @@ public sealed partial class ChatSystem : SharedChatSystem
     }
 
     // ReSharper disable once InconsistentNaming
-    private string SanitizeInGameICMessage(EntityUid source, string message, out string? emoteStr, bool capitalize = true, bool punctuate = false, bool capitalizeTheWordI = true)
+    private string SanitizeInGameICMessage(EntityUid source, string message, out string? emoteKey, bool capitalize = true, bool punctuate = false, bool capitalizeTheWordI = true) // Mono - emoteKey
     {
         var newMessage = SanitizeMessageReplaceWords(message.Trim());
 
         GetRadioKeycodePrefix(source, newMessage, out newMessage, out var prefix);
 
         // Sanitize it first as it might change the word order
-        _sanitizer.TrySanitizeEmoteShorthands(newMessage, source, out newMessage, out emoteStr);
+        _sanitizer.TrySanitizeEmoteShorthands(newMessage, out newMessage, out emoteKey); // Mono - emoteKey, worded later for whoever does it
 
         if (capitalize)
             newMessage = SanitizeMessageCapital(newMessage);

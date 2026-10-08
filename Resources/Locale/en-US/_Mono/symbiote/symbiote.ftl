@@ -31,6 +31,7 @@ symbiote-bond-target = You feel something settle inside your head.
 symbiote-leave = You crawl out of {THE($target)}'s skull.
 symbiote-leave-target = You feel something crawl out of your head.
 
-## Nudging
-symbiote-nudge = You nudge {THE($target)}.
-symbiote-nudge-others = {CAPITALIZE(THE($user))} nudges {THE($target)}.
+## Abilities
+symbiote-no-host = You don't have a host.
+symbiote-ability-not-enough-chemicals = You don't have enough chemicals.
+symbiote-tendril-mouth-muted = Your mouth is stuffed with tendrils.

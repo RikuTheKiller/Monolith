@@ -23,3 +23,17 @@
     itemIconStyle: NoItem
     icon: _Mono/Interface/Action/borer_infest.png # Placeholder
     event: !type:SymbioteDebugBondActionEvent
+
+- type: entity
+  id: ActionSymbioteTendrilMouth
+  name: Tendril Mouth
+  description: Extend your tendrils into your host's mouth. Their voice becomes yours.
+  components:
+  - type: InstantAction
+    itemIconStyle: NoItem
+    icon: _Mono/Interface/Action/borer_control.png # Placeholder
+    event: !type:SymbioteAbilityActionEvent
+  - type: SymbioteAbility
+    activationCost: 20
+    upkeep: 2
+  - type: SymbioteTendrilMouth

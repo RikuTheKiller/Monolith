@@ -1,5 +1,6 @@
 - type: emote
   id: Spin
+  category: Body # Mono
   name: chat-emote-name-spin
   chatMessages: ["chat-emote-msg-spin"]
   icon: _Impstation/Interface/Emotes/spin.png #imp
@@ -12,6 +13,7 @@
 
 - type: emote
   id: Jump
+  category: Body # Mono
   name: chat-emote-name-jump
   chatMessages: ["chat-emote-msg-jump"]
   icon: _Impstation/Interface/Emotes/jump.png #imp
@@ -28,6 +30,7 @@
 
 - type: emote
   id: Flip
+  category: Body # Mono
   name: chat-emote-name-flip
   icon: _Goobstation/Interface/Emotes/flip.png
   chatMessages: ["chat-emote-msg-flip"]

@@ -7,7 +7,6 @@ public interface IChatSanitizationManager
     public void Initialize();
 
     public bool TrySanitizeEmoteShorthands(string input,
-        EntityUid speaker,
         out string sanitized,
-        [NotNullWhen(true)] out string? emote);
+        [NotNullWhen(true)] out string? emoteKey); // Mono - The key instead of the worded emote, so it's worded for whoever ends up doing it
 }

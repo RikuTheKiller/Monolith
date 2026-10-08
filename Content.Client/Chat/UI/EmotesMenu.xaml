@@ -17,6 +17,10 @@
         <ui:RadialMenuTextureButtonWithSector SetSize="64 64" ToolTip="{Loc 'emote-menu-category-hands'}" TargetLayer="Hands" Visible="False">
             <TextureRect VerticalAlignment="Center" HorizontalAlignment="Center" TextureScale="2 2" Name="HandsCategoryTexture"/>
         </ui:RadialMenuTextureButtonWithSector>
+        <!-- Mono -->
+        <ui:RadialMenuTextureButtonWithSector SetSize="64 64" ToolTip="{Loc 'emote-menu-category-body'}" TargetLayer="Body" Visible="False">
+            <TextureRect VerticalAlignment="Center" HorizontalAlignment="Center" TextureScale="2 2" TexturePath="/Textures/_Impstation/Interface/Emotes/jump.png"/>
+        </ui:RadialMenuTextureButtonWithSector>
     </ui:RadialContainer>
 
     <!-- General -->
@@ -27,5 +31,8 @@
 
     <!-- Hands -->
     <ui:RadialContainer Name="Hands"  VerticalExpand="True" HorizontalExpand="True" InitialRadius="100"/>
+
+    <!-- Body --> <!-- Mono -->
+    <ui:RadialContainer Name="Body"  VerticalExpand="True" HorizontalExpand="True" InitialRadius="100"/>
 
 </ui:RadialMenu>

@@ -33,7 +33,7 @@ public sealed partial class EmotePrototype : IPrototype
     ///     Different emote categories may be handled by different systems.
     ///     Also may be used for filtering.
     /// </summary>
-    [DataField]
+    [DataField(required: true)] // Mono - Required, since defaulting to General made emotes use everything, including the voice
     public EmoteCategory Category = EmoteCategory.General;
 
     /// <summary>
@@ -84,6 +84,7 @@ public enum EmoteCategory : byte
 {
     Invalid = 0,
     Vocal = 1 << 0,
-    Hands = 1 << 1,
+    Hands = 1 << 1 | Body, // Mono - Using the hands uses the body
+    Body = 1 << 2, // Mono
     General = byte.MaxValue
 }

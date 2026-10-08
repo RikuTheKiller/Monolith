@@ -1,5 +1,6 @@
 - type: emote
   id: SiliconDeathgasp
+  category: Vocal # Mono
   name: chat-emote-name-deathgasp
   icon: Interface/Emotes/deathgasp.png
   chatMessages: ["chat-emote-msg-deathgasp-silicon"]
