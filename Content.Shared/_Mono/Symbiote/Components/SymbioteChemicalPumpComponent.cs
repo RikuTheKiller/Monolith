@@ -1,0 +1,81 @@
+using Content.Shared.Damage.Prototypes;
+using Robust.Shared.Prototypes;
+
+namespace Content.Shared._Mono.Symbiote.Components;
+
+/// <summary>
+/// Marks a symbiote ability as Chemical Pump, which continuously heals the host and can bring them back from the dead.
+/// The pump sits on top of the host's chest with its own health, taking any physical damage the host gets hit with before their armor does.
+/// The ability ends if its health runs out.
+/// </summary>
+[RegisterComponent]
+public sealed partial class SymbioteChemicalPumpComponent : Component
+{
+    /// <summary>
+    /// How much healing the pump has to spend per second, before effectiveness.
+    /// </summary>
+    [DataField]
+    public float Healing = 12.5f;
+
+    /// <summary>
+    /// What the pump heals and how effectively, from most effective to least.
+    /// Healing goes to the most effective tier first, and only what's left over reaches the next.
+    /// </summary>
+    [DataField(required: true)]
+    public List<SymbioteChemicalPumpTier> Tiers = new();
+
+    /// <summary>
+    /// The name of the host's blood solution, read directly so the client can predict how much blood is missing.
+    /// </summary>
+    [DataField]
+    public string BloodSolution = "bloodstream";
+
+    /// <summary>
+    /// The damage groups that hurt the pump when the host takes them.
+    /// </summary>
+    [DataField]
+    public List<ProtoId<DamageGroupPrototype>> PhysicalGroups = new() { "Brute", "Burn" };
+
+    /// <summary>
+    /// How much health a fresh pump starts with.
+    /// </summary>
+    [DataField]
+    public float MaxHealth = 50f;
+
+    /// <summary>
+    /// How much health the pump regenerates per second.
+    /// </summary>
+    [DataField]
+    public float HealthRegen = 10f;
+
+    /// <summary>
+    /// How much health the pump has left. Starts fresh every time the ability activates.
+    /// </summary>
+    [ViewVariables]
+    public float Health;
+}
+
+/// <summary>
+/// Things the Chemical Pump heals equally effectively.
+/// </summary>
+[DataDefinition]
+public sealed partial class SymbioteChemicalPumpTier
+{
+    /// <summary>
+    /// How much of the healing spent on this tier actually heals.
+    /// </summary>
+    [DataField(required: true)]
+    public float Effectiveness;
+
+    /// <summary>
+    /// The damage types in this tier.
+    /// </summary>
+    [DataField]
+    public List<ProtoId<DamageTypePrototype>> Types = new();
+
+    /// <summary>
+    /// Whether lost blood is in this tier, measured as a percentage of maximum blood volume.
+    /// </summary>
+    [DataField]
+    public bool Blood;
+}

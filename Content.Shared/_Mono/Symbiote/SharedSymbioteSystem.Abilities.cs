@@ -109,4 +109,22 @@ public abstract partial class SharedSymbioteSystem
 
         LoseChemicals(ent, upkeep * seconds);
     }
+
+    /// <summary>
+    /// Lets every active ability do whatever it does over time, in step with the symbiote's chemicals.
+    /// </summary>
+    private void UpdateAbilities(Entity<SymbioteComponent> ent, float seconds)
+    {
+        if (ent.Comp.Host is not { } host)
+            return;
+
+        foreach (var (actionUid, action) in _actions.GetActions(ent))
+        {
+            if (!action.Toggled || !HasComp<SymbioteAbilityComponent>(actionUid))
+                continue;
+
+            var ev = new SymbioteAbilityUpdateEvent(ent, host, seconds);
+            RaiseLocalEvent(actionUid, ref ev);
+        }
+    }
 }

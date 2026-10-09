@@ -12,6 +12,11 @@ public sealed partial class SymbioteLeaveHostActionEvent : InstantActionEvent;
 public sealed partial class SymbioteDebugBondActionEvent : EntityTargetActionEvent;
 
 /// <summary>
+/// Opens or closes a health analyzer on the host.
+/// </summary>
+public sealed partial class SymbioteCheckBloodActionEvent : InstantActionEvent;
+
+/// <summary>
 /// Toggles whichever symbiote ability the action belongs to.
 /// </summary>
 public sealed partial class SymbioteAbilityActionEvent : InstantActionEvent;
@@ -21,6 +26,12 @@ public sealed partial class SymbioteAbilityActionEvent : InstantActionEvent;
 /// </summary>
 [ByRefEvent]
 public readonly record struct SymbioteAbilityToggledEvent(EntityUid Symbiote, EntityUid Host, bool Active);
+
+/// <summary>
+/// Raised on an active ability's action every time the symbiote updates, for whatever it does over time.
+/// </summary>
+[ByRefEvent]
+public readonly record struct SymbioteAbilityUpdateEvent(EntityUid Symbiote, EntityUid Host, float Seconds);
 
 /// <summary>
 /// Raised when someone finishes eating a symbiote, or feeding it to someone else.

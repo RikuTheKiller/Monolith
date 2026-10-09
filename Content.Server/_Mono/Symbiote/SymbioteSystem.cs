@@ -5,6 +5,7 @@ using Content.Server.Atmos.EntitySystems;
 using Content.Server.Body.Components;
 using Content.Server.Chat.Systems;
 using Content.Server.Medical;
+using Content.Server.Medical.Components;
 using Content.Server.Nutrition.EntitySystems;
 using Content.Server.Radio.EntitySystems;
 using Content.Server.Temperature.Components;
@@ -12,23 +13,29 @@ using Content.Server.Temperature.Systems;
 using Content.Shared.Chat;
 using Content.Shared._Mono.Symbiote;
 using Content.Shared._Mono.Symbiote.Components;
+using Content.Shared.Actions;
 using Content.Shared.Body.Part;
 using Content.Shared.Body.Systems;
+using Content.Shared.MedicalScanner;
 using Content.Shared.Mobs;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Polymorph;
 using Content.Shared.Temperature;
+using Robust.Server.GameObjects;
 
 namespace Content.Server._Mono.Symbiote;
 
 public sealed partial class SymbioteSystem : SharedSymbioteSystem
 {
+    [Dependency] private SharedActionsSystem _actions = default!;
     [Dependency] private SharedBodySystem _body = default!;
     [Dependency] private FlammableSystem _flammable = default!;
     [Dependency] private FoodSystem _food = default!;
+    [Dependency] private HealthAnalyzerSystem _healthAnalyzer = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private RadioSystem _radio = default!;
     [Dependency] private TemperatureSystem _temperature = default!;
+    [Dependency] private UserInterfaceSystem _ui = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private VomitSystem _vomit = default!;
 
@@ -38,6 +45,7 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
 
         SubscribeLocalEvent<SymbioteComponent, MobStateChangedEvent>(OnMobStateChanged);
         SubscribeLocalEvent<SymbioteComponent, CheckTargetedSpeechEvent>(OnCheckTargetedSpeech);
+        SubscribeLocalEvent<SymbioteComponent, SymbioteCheckBloodActionEvent>(OnCheckBloodAction);
         SubscribeLocalEvent<SymbioteComponent, ModifyChangedTemperatureEvent>(OnTemperatureChange);
         SubscribeLocalEvent<SymbioteComponent, TryIgniteEvent>(OnIgniteAttempt);
 
@@ -185,4 +193,45 @@ public sealed partial class SymbioteSystem : SharedSymbioteSystem
         if (ent.Comp.Host != null)
             args.Cancelled = true;
     }
+
+    #region Check Blood
+
+    private void OnCheckBloodAction(Entity<SymbioteComponent> ent, ref SymbioteCheckBloodActionEvent args)
+    {
+        // The analyzer is on the action, so holding the symbiote never turns it into a health analyzer
+        var action = args.Action.Owner;
+        if (args.Handled || !TryComp<HealthAnalyzerComponent>(action, out var analyzer) || !CheckHasHost(ent, out var host))
+            return;
+
+        args.Handled = true;
+
+        if (_ui.IsUiOpen(action, HealthAnalyzerUiKey.Key, ent))
+        {
+            StopCheckingBlood((action, analyzer));
+            return;
+        }
+
+        _ui.OpenUi(action, HealthAnalyzerUiKey.Key, ent);
+        _healthAnalyzer.BeginAnalyzingEntity((action, analyzer), host);
+    }
+
+    protected override void OnLeftHost(Entity<SymbioteComponent> ent, EntityUid host)
+    {
+        // The analyzer would keep scanning the old host while the symbiote is right next to them
+        foreach (var (actionUid, _) in _actions.GetActions(ent))
+        {
+            if (TryComp<HealthAnalyzerComponent>(actionUid, out var analyzer))
+                StopCheckingBlood((actionUid, analyzer));
+        }
+    }
+
+    private void StopCheckingBlood(Entity<HealthAnalyzerComponent> analyzer)
+    {
+        _ui.CloseUi(analyzer.Owner, HealthAnalyzerUiKey.Key);
+
+        if (analyzer.Comp.ScannedEntity is { } scanned)
+            _healthAnalyzer.StopAnalyzingEntity(analyzer, scanned);
+    }
+
+    #endregion
 }

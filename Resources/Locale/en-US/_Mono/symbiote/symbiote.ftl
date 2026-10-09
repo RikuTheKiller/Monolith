@@ -35,3 +35,4 @@ symbiote-leave-target = You feel something crawl out of your head.
 symbiote-no-host = You don't have a host.
 symbiote-ability-not-enough-chemicals = You don't have enough chemicals.
 symbiote-tendril-mouth-muted = Your mouth is stuffed with tendrils.
+symbiote-chemical-pump-destroyed = Your chemical pump is torn apart.

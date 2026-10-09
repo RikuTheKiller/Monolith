@@ -31,7 +31,7 @@ public abstract partial class SharedSymbioteSystem
     /// <summary>
     /// Whether the symbiote has a host. If it doesn't, shows a popup saying so.
     /// </summary>
-    private bool CheckHasHost(Entity<SymbioteComponent> ent, out EntityUid host)
+    protected bool CheckHasHost(Entity<SymbioteComponent> ent, out EntityUid host)
     {
         if (ent.Comp.Host is { } symbioteHost)
         {
@@ -295,6 +295,15 @@ public abstract partial class SharedSymbioteSystem
     /// <summary>
     /// Makes the host vomit after a symbiote crawls out. Only does anything on the server.
     /// </summary>
+    /// <summary>
+    /// Called when the symbiote leaves its host, however it left, after its abilities have ended.
+    /// </summary>
+    /// <param name="ent">The symbiote.</param>
+    /// <param name="host">The host it left.</param>
+    protected virtual void OnLeftHost(Entity<SymbioteComponent> ent, EntityUid host)
+    {
+    }
+
     protected virtual void MakeHostVomit(EntityUid host)
     {
     }
@@ -326,6 +335,7 @@ public abstract partial class SharedSymbioteSystem
 
         // Abilities only work inside a host, however the symbiote left it
         DeactivateAllAbilities(ent);
+        OnLeftHost(ent, host);
 
         // This also runs when the symbiote or its host gets deleted, since that takes the symbiote out of the container
         if (!TerminatingOrDeleted(host))

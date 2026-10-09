@@ -25,6 +25,21 @@
     event: !type:SymbioteDebugBondActionEvent
 
 - type: entity
+  id: ActionSymbioteCheckBlood
+  name: Check Blood
+  description: Analyze the bloodstream of your host, giving you a detailed view of their health.
+  components:
+  - type: InstantAction
+    itemIconStyle: NoItem
+    icon: _Mono/Interface/Action/borer_bloodcheck.png # Placeholder
+    event: !type:SymbioteCheckBloodActionEvent
+  - type: HealthAnalyzer
+  - type: UserInterface
+    interfaces:
+      enum.HealthAnalyzerUiKey.Key:
+        type: HealthAnalyzerBoundUserInterface
+
+- type: entity
   id: ActionSymbioteTendrilMouth
   name: Tendril Mouth
   description: Extend your tendrils into your host's mouth. Their voice becomes yours.
@@ -53,3 +68,25 @@
     activationCost: 20
     upkeep: 2
   - type: SymbioteThermalEyes
+
+- type: entity
+  id: ActionSymbioteChemicalPump
+  name: Chemical Pump
+  description: Heal your host over time. If you heal them above critical, they will be revived. Rapidly taking a lot of damage will destroy the pump.
+  components:
+  - type: InstantAction
+    itemIconStyle: NoItem
+    icon: _Mono/Interface/Action/borer_chem.png # Placeholder
+    event: !type:SymbioteAbilityActionEvent
+  - type: SymbioteAbility
+    activationCost: 60
+    upkeep: 10
+  - type: SymbioteChemicalPump
+    tiers:
+    - effectiveness: 1 # Physical
+      types: [ Blunt, Slash, Piercing, Heat, Shock, Cold, Caustic ]
+    - effectiveness: 0.5 # Common non-physical
+      types: [ Asphyxiation, Bloodloss, Poison ]
+      blood: true
+    - effectiveness: 0.2 # Rare non-physical
+      types: [ Radiation, Cellular ]

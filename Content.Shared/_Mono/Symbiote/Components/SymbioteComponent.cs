@@ -76,14 +76,17 @@ public sealed partial class SymbioteComponent : Component
     [DataField, AutoNetworkedField, AutoPausedField]
     public TimeSpan ChemicalRegenLockoutEnd;
 
+    /// <summary>
+    /// How often the symbiote updates its chemicals and active abilities.
+    /// </summary>
     [DataField]
-    public TimeSpan ChemicalUpdateInterval = TimeSpan.FromSeconds(0.1);
+    public TimeSpan UpdateInterval = TimeSpan.FromSeconds(0.1);
 
     /// <summary>
     /// Networked so the client regenerates and drains chemicals in step with the server.
     /// </summary>
     [DataField, AutoNetworkedField, AutoPausedField]
-    public TimeSpan NextChemicalUpdate;
+    public TimeSpan NextUpdate;
 
     [DataField]
     public ProtoId<AlertPrototype> ChemicalsAlert = "SymbioteChemicals";

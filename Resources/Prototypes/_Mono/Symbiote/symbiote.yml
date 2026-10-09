@@ -85,8 +85,10 @@
   - type: ActionGrant
     actions:
     - ActionSymbioteLeaveHost
+    - ActionSymbioteCheckBlood
     - ActionSymbioteTendrilMouth
     - ActionSymbioteThermalEyes
+    - ActionSymbioteChemicalPump
   - type: Symbiote
     removeOnBond:
     - type: CanEscapeInventory # Moving would make it crawl out of its host

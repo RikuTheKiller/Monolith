@@ -14,12 +14,14 @@ public abstract partial class SharedSymbioteSystem
         {
             var ent = (uid, comp);
 
-            if (curTime >= comp.NextChemicalUpdate)
+            if (curTime >= comp.NextUpdate)
             {
-                comp.NextChemicalUpdate = curTime + comp.ChemicalUpdateInterval;
+                comp.NextUpdate = curTime + comp.UpdateInterval;
                 Dirty(uid, comp);
 
-                UpdateChemicals(ent);
+                var seconds = (float)comp.UpdateInterval.TotalSeconds;
+                UpdateChemicals(ent, seconds);
+                UpdateAbilities(ent, seconds);
             }
 
             ResolveChemicals(ent);
@@ -29,10 +31,8 @@ public abstract partial class SharedSymbioteSystem
     /// <summary>
     /// Regenerates chemicals inside a living host, and drains them anywhere else.
     /// </summary>
-    private void UpdateChemicals(Entity<SymbioteComponent> ent)
+    private void UpdateChemicals(Entity<SymbioteComponent> ent, float seconds)
     {
-        var seconds = (float)ent.Comp.ChemicalUpdateInterval.TotalSeconds;
-
         PayAbilityUpkeep(ent, seconds);
 
         // Regeneration can't happen during the drain anyway, so it doesn't need to pause it
