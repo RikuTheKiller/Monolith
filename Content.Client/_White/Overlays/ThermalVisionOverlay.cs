@@ -70,8 +70,16 @@ public sealed partial class ThermalVisionOverlay : Overlay
         // Thermal vision grants some night vision (clientside light)
         if (LightRadius > 0)
         {
+            // Mono start - Attached to whatever the player is inside of, like a host's head, since containers block light.
+            // That can be deleted along with the light, like a gibbed host, so it's made again if it's gone.
+            var lightParent = _container.TryGetOuterContainer(player.Value, playerXform, out var outer) ? outer.Owner : player.Value;
+
+            if (_lightEntity != null && _entity.Deleted(_lightEntity.Value))
+                _lightEntity = null;
+
             _lightEntity ??= _entity.SpawnAttachedTo(null, playerXform.Coordinates);
-            _transform.SetParent(_lightEntity.Value, player.Value);
+            _transform.SetParent(_lightEntity.Value, lightParent);
+            // Mono end
             var light = _entity.EnsureComponent<PointLightComponent>(_lightEntity.Value);
             _light.SetRadius(_lightEntity.Value, LightRadius, light);
             _light.SetEnergy(_lightEntity.Value, alpha, light);
