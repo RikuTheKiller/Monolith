@@ -52,5 +52,4 @@
   - type: SymbioteAbility
     activationCost: 20
     upkeep: 2
-  - type: SymbioteEyes
-    vision: ThermalVision
+  - type: SymbioteThermalEyes
