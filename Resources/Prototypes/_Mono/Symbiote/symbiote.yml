@@ -77,10 +77,16 @@
   - type: UniversalLanguageSpeaker
   - type: CanEscapeInventory
   - type: Nudge
+  - type: ThermalVision # Switched on by Thermal Eyes
+    toggleAction: null
+    lightRadius: 15
+    activateSound: null
+    deactivateSound: null
   - type: ActionGrant
     actions:
     - ActionSymbioteLeaveHost
     - ActionSymbioteTendrilMouth
+    - ActionSymbioteThermalEyes
   - type: Symbiote
     removeOnBond:
     - type: CanEscapeInventory # Moving would make it crawl out of its host

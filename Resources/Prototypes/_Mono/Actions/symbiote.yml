@@ -37,3 +37,20 @@
     activationCost: 20
     upkeep: 2
   - type: SymbioteTendrilMouth
+
+- type: entity
+  id: ActionSymbioteThermalEyes
+  name: Thermal Eyes
+  description: Enhance your host's eyesight, granting you both thermal vision.
+  components:
+  - type: InstantAction
+    itemIconStyle: NoItem
+    icon: # Placeholder
+      sprite: _White/Clothing/Eyes/Goggles/thermal.rsi
+      state: icon
+    event: !type:SymbioteAbilityActionEvent
+  - type: SymbioteAbility
+    activationCost: 20
+    upkeep: 2
+  - type: SymbioteEyes
+    vision: ThermalVision
