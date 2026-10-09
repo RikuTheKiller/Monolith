@@ -9,7 +9,6 @@ using Content.Shared.Body.Systems;
 using Content.Shared.Damage;
 using Content.Shared.FixedPoint;
 using Content.Shared.Mind;
-using Content.Shared.Popups;
 using Robust.Server.Player;
 using Robust.Shared.Prototypes;
 
@@ -27,7 +26,6 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
     [Dependency] private EuiManager _eui = default!;
     [Dependency] private SharedActionsSystem _actions = default!;
     [Dependency] private SharedMindSystem _mind = default!;
-    [Dependency] private SharedPopupSystem _popup = default!;
     [Dependency] private SharedSymbioteSystem _symbiote = default!;
 
     public override void Initialize()
@@ -74,8 +72,6 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
 
             if (TryComp<SymbioteComponent>(symbiote, out var symbioteComp))
                 _symbiote.DeactivateAbility((symbiote, symbioteComp), (actionUid, ability));
-
-            _popup.PopupEntity(Loc.GetString("symbiote-chemical-pump-destroyed"), symbiote, symbiote, PopupType.MediumCaution);
         }
     }
 

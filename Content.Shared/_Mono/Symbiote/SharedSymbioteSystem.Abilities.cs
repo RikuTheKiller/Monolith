@@ -9,6 +9,17 @@ public abstract partial class SharedSymbioteSystem
     {
         SubscribeLocalEvent<SymbioteComponent, SymbioteAbilityActionEvent>(OnAbilityAction);
         SubscribeLocalEvent<SymbioteAbilityComponent, ActionPerformedEvent>(OnAbilityPerformed);
+        SubscribeLocalEvent<SymbioteAbilityComponent, MapInitEvent>(OnAbilityMapInit);
+    }
+
+    private void OnAbilityMapInit(Entity<SymbioteAbilityComponent> ent, ref MapInitEvent args)
+    {
+        if (ent.Comp.ActivationCost <= 0f && ent.Comp.Upkeep <= 0f)
+            return;
+
+        // Shows the costs in the action's tooltip, straight from the numbers so they can't go out of date
+        var cost = Loc.GetString("symbiote-ability-cost", ("cost", ent.Comp.ActivationCost), ("upkeep", ent.Comp.Upkeep));
+        _metaData.SetEntityDescription(ent, $"{MetaData(ent).EntityDescription}\n\n{cost}");
     }
 
     private void OnAbilityAction(Entity<SymbioteComponent> ent, ref SymbioteAbilityActionEvent args)

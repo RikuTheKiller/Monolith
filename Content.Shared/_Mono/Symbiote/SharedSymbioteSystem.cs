@@ -21,6 +21,7 @@ public abstract partial class SharedSymbioteSystem : EntitySystem
     [Dependency] private AlertsSystem _alerts = default!;
     [Dependency] private SharedContainerSystem _container = default!;
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
+    [Dependency] private MetaDataSystem _metaData = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private SharedPopupSystem _popup = default!;
 
