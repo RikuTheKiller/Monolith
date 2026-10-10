@@ -85,6 +85,7 @@
     sprite:
       sprite: _Mono/Mobs/Aliens/Symbiote/chemical_pump.rsi
       state: pulse
+    emergeState: emerge
     tiers:
     - effectiveness: 1 # Physical
       types: [ Blunt, Slash, Piercing, Heat, Shock, Cold, Caustic ]

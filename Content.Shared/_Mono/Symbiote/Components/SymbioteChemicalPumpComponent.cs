@@ -19,6 +19,12 @@ public sealed partial class SymbioteChemicalPumpComponent : Component
     public SpriteSpecifier Sprite = default!;
 
     /// <summary>
+    /// The state in the sprite's RSI that plays once as the pump emerges, before the sprite's own state takes over.
+    /// </summary>
+    [DataField]
+    public string? EmergeState;
+
+    /// <summary>
     /// How much healing the pump has to spend per second, before effectiveness.
     /// </summary>
     [DataField]

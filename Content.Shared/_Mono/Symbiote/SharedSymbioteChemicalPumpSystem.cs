@@ -7,6 +7,7 @@ using Content.Shared.Mobs;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Traits.Assorted;
 using Robust.Shared.Prototypes;
+using Robust.Shared.Timing;
 
 namespace Content.Shared._Mono.Symbiote;
 
@@ -16,6 +17,7 @@ namespace Content.Shared._Mono.Symbiote;
 /// </summary>
 public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
 {
+    [Dependency] private IGameTiming _timing = default!;
     [Dependency] private DamageableSystem _damageable = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private MobThresholdSystem _mobThreshold = default!;
@@ -43,7 +45,14 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
 
         // Set before it's added, so the client already knows what to draw when the component starts up
         if (!HasComp<SymbioteChemicalPumpHostComponent>(args.Host))
-            AddComp(args.Host, new SymbioteChemicalPumpHostComponent { Sprite = ent.Comp.Sprite });
+        {
+            AddComp(args.Host, new SymbioteChemicalPumpHostComponent
+            {
+                Sprite = ent.Comp.Sprite,
+                EmergeState = ent.Comp.EmergeState,
+                StartTime = _timing.CurTime,
+            });
+        }
     }
 
     private void OnUpdate(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityUpdateEvent args)
