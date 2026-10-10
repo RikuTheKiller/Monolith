@@ -27,6 +27,13 @@ public sealed partial class SymbioteChemicalPumpComponent : Component
     public string? EmergeState;
 
     /// <summary>
+    /// How long the pump takes to emerge, which should match how long the emerge state plays for.
+    /// The server can't read sprites, so it has to be given here.
+    /// </summary>
+    [DataField]
+    public TimeSpan EmergeDuration = TimeSpan.FromSeconds(0.4);
+
+    /// <summary>
     /// The state in the sprite's RSI that plays once as the pump retracts after the ability ends.
     /// </summary>
     [DataField]

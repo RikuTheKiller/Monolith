@@ -28,6 +28,7 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private DamageableSystem _damageable = default!;
+    [Dependency] private SharedAppearanceSystem _appearance = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private MobThresholdSystem _mobThreshold = default!;
     [Dependency] private SharedActionsSystem _actions = default!;
@@ -50,14 +51,37 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     {
         base.Update(frameTime);
 
-        // Pumps that are done retracting or bursting go away
+        // Pumps that are done emerging start beating, and ones that are done retracting or bursting are gone
         var curTime = _timing.CurTime;
         var query = EntityQueryEnumerator<SymbioteChemicalPumpHostComponent>();
         while (query.MoveNext(out var uid, out var pump))
         {
-            if (pump.EndTime is { } end && curTime >= end)
-                RemCompDeferred<SymbioteChemicalPumpHostComponent>(uid);
+            if (pump.NextStateChange is not { } next || curTime < next)
+                continue;
+
+            var state = GetState(uid);
+            SetState((uid, pump), state == SymbioteChemicalPumpState.Emerging ? SymbioteChemicalPumpState.Active : SymbioteChemicalPumpState.None, null);
         }
+    }
+
+    /// <summary>
+    /// What the pump on a host is doing, if they have one.
+    /// </summary>
+    public SymbioteChemicalPumpState GetState(EntityUid host)
+    {
+        return _appearance.TryGetData<SymbioteChemicalPumpState>(host, SymbioteChemicalPumpVisuals.State, out var state)
+            ? state
+            : SymbioteChemicalPumpState.None;
+    }
+
+    /// <summary>
+    /// Changes what the pump is doing, and when it moves on to the next thing, if it does on its own.
+    /// </summary>
+    private void SetState(Entity<SymbioteChemicalPumpHostComponent> ent, SymbioteChemicalPumpState state, TimeSpan? duration)
+    {
+        ent.Comp.NextStateChange = duration is { } d ? _timing.CurTime + d : null;
+        Dirty(ent);
+        _appearance.SetData(ent, SymbioteChemicalPumpVisuals.State, state);
     }
 
     private void OnToggled(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityToggledEvent args)
@@ -65,25 +89,26 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
         if (!args.Active)
         {
             // Retracts, unless it already started bursting
-            End(args.Host, ent.Comp.RetractState, ent.Comp.RetractDuration, ent.Comp.RetractSound, args.User);
+            End(args.Host, SymbioteChemicalPumpState.Retracting, ent.Comp.RetractState, ent.Comp.RetractDuration, ent.Comp.RetractSound, args.User);
             return;
         }
 
         // A fresh pump every time
         SetHealth(ent, ent.Comp.MaxHealth);
 
-        // One that's still going away gets replaced, so the new one emerges from scratch
-        RemComp<SymbioteChemicalPumpHostComponent>(args.Host);
+        var pump = EnsureComp<SymbioteChemicalPumpHostComponent>(args.Host);
+        pump.Sprite = ent.Comp.Sprite;
+        pump.EmergeState = ent.Comp.EmergeState;
+        pump.RetractState = ent.Comp.RetractState;
+        pump.BurstState = ent.Comp.BurstState;
+        pump.BeatSound = ent.Comp.BeatSound;
+        pump.BeatFrame = ent.Comp.BeatFrame;
 
-        // Set before it's added, so the client already knows what to draw when the component starts up
-        AddComp(args.Host, new SymbioteChemicalPumpHostComponent
-        {
-            Sprite = ent.Comp.Sprite,
-            EmergeState = ent.Comp.EmergeState,
-            StartTime = _timing.CurTime,
-            BeatSound = ent.Comp.BeatSound,
-            BeatFrame = ent.Comp.BeatFrame,
-        });
+        // Emerges from scratch, even if the last one was still going away
+        if (ent.Comp.EmergeState != null)
+            SetState((args.Host, pump), SymbioteChemicalPumpState.Emerging, ent.Comp.EmergeDuration);
+        else
+            SetState((args.Host, pump), SymbioteChemicalPumpState.Active, null);
 
         PlaySound(ent.Comp.EmergeSound, args.Host, args.User);
     }
@@ -167,33 +192,31 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     /// </summary>
     private void Burst(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
     {
-        if (ent.Comp.BurstState is { } burst)
-            End(host, burst, ent.Comp.BurstDuration, ent.Comp.BurstSound, null);
+        if (ent.Comp.BurstState != null)
+            End(host, SymbioteChemicalPumpState.Bursting, ent.Comp.BurstState, ent.Comp.BurstDuration, ent.Comp.BurstSound, null);
     }
 
     /// <summary>
-    /// Starts the pump going away, playing a state once before it's removed.
+    /// Starts the pump going away, playing a sprite state once before it's gone.
     /// </summary>
     /// <param name="host">The host the pump is on.</param>
-    /// <param name="state">The state to play as it goes away. Without one, it's removed right away.</param>
-    /// <param name="duration">How long the state plays for.</param>
+    /// <param name="ending">How it's going away.</param>
+    /// <param name="sprite">The sprite state that plays as it goes away. Without one, it's gone right away.</param>
+    /// <param name="duration">How long the sprite state plays for.</param>
     /// <param name="sound">The sound of it going away.</param>
     /// <param name="user">Whoever's input made it go away, if anyone.</param>
-    private void End(EntityUid host, string? state, TimeSpan duration, SoundSpecifier? sound, EntityUid? user)
+    private void End(EntityUid host, SymbioteChemicalPumpState ending, string? sprite, TimeSpan duration, SoundSpecifier? sound, EntityUid? user)
     {
-        if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump) || pump.EndTime != null)
+        // Only one that's still there can go away
+        if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump)
+            || GetState(host) is not (SymbioteChemicalPumpState.Emerging or SymbioteChemicalPumpState.Active))
             return;
 
-        if (state == null)
-        {
-            RemComp(host, pump);
-            return;
-        }
+        if (sprite == null)
+            SetState((host, pump), SymbioteChemicalPumpState.None, null);
+        else
+            SetState((host, pump), ending, duration);
 
-        pump.EndState = state;
-        pump.EndStart = _timing.CurTime;
-        pump.EndTime = _timing.CurTime + duration;
-        Dirty(host, pump);
         PlaySound(sound, host, user);
     }
 

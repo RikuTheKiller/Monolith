@@ -4,30 +4,29 @@ using Content.Shared._Mono.Symbiote.Components;
 using Content.Shared.DisplacementMap;
 using Content.Shared.Humanoid;
 using Content.Shared.Inventory;
+using Robust.Client.Animations;
 using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Player;
-using Robust.Shared.Timing;
 using Robust.Shared.Utility;
 
 namespace Content.Client._Mono.Symbiote;
 
 /// <summary>
-/// Draws the Chemical Pump on its host and plays its beat.
-/// Worked out once per frame, after prediction has settled, so prediction removing and re-adding the pump can't make it replay.
-/// Animations play from when this client first saw them, so ones it predicted play right on time,
-/// and ones it only learns about from the server play in full, just a bit later.
+/// Draws the Chemical Pump on its host, playing whatever its state calls for whenever it changes, like doors do.
 /// </summary>
 public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSystem
 {
-    [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private AnimationPlayerSystem _animation = default!;
+    [Dependency] private AppearanceSystem _appearance = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private DisplacementMapSystem _displacement = default!;
     [Dependency] private InventorySystem _inventory = default!;
     [Dependency] private SpriteSystem _sprite = default!;
 
     private const string LayerKey = "symbiote-chemical-pump";
+    private const string AnimationKey = "symbiote-chemical-pump";
 
     /// <summary>
     /// The pump sits on top of the host's armor, so it's placed and shaped like their outer clothing.
@@ -39,175 +38,140 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
     /// </summary>
     private const string NextSlot = "eyes";
 
+    public override void Initialize()
+    {
+        base.Initialize();
+
+        SubscribeLocalEvent<SymbioteChemicalPumpHostComponent, AppearanceChangeEvent>(OnAppearanceChange);
+    }
+
+    private void OnAppearanceChange(Entity<SymbioteChemicalPumpHostComponent> ent, ref AppearanceChangeEvent args)
+    {
+        if (args.Sprite == null || ent.Comp.Sprite is not { } pump)
+            return;
+
+        if (!_appearance.TryGetData<SymbioteChemicalPumpState>(ent, SymbioteChemicalPumpVisuals.State, out var state, args.Component))
+            state = SymbioteChemicalPumpState.None;
+
+        // The host's appearance changes for all sorts of reasons, like taking damage, and those shouldn't restart the pump's animation
+        if (state == ent.Comp.ShownState)
+            return;
+
+        ent.Comp.ShownState = state;
+
+        var sprite = (ent.Owner, args.Sprite);
+        if (!_sprite.LayerMapTryGet(sprite, LayerKey, out var index, false))
+        {
+            if (state == SymbioteChemicalPumpState.None)
+                return;
+
+            index = AddLayer(ent, args.Sprite, pump);
+        }
+
+        if (_animation.HasRunningAnimation(ent, AnimationKey))
+            _animation.Stop(ent.Owner, AnimationKey);
+
+        ent.Comp.LastFrame = -1;
+        _sprite.LayerSetVisible(sprite, index, state != SymbioteChemicalPumpState.None);
+
+        switch (state)
+        {
+            case SymbioteChemicalPumpState.Emerging:
+                PlayOnce(ent, args.Sprite, index, ent.Comp.EmergeState);
+                break;
+            case SymbioteChemicalPumpState.Active:
+                _sprite.LayerSetSprite(sprite, index, pump);
+                _sprite.LayerSetAutoAnimated(sprite, index, true);
+                break;
+            case SymbioteChemicalPumpState.Retracting:
+                PlayOnce(ent, args.Sprite, index, ent.Comp.RetractState);
+                break;
+            case SymbioteChemicalPumpState.Bursting:
+                PlayOnce(ent, args.Sprite, index, ent.Comp.BurstState);
+                break;
+        }
+    }
+
     /// <summary>
-    /// How late a client can first see a pump and still see it emerge. Any later and it was there all along, like walking up to the host.
+    /// Plays a state on the pump's layer once from the start, holding the last frame until the pump's state changes again.
     /// </summary>
-    private static readonly TimeSpan LateEmerge = TimeSpan.FromSeconds(1);
+    private void PlayOnce(EntityUid host, SpriteComponent sprite, int index, string? state)
+    {
+        if (state == null
+            || _sprite.LayerGetEffectiveRsi((host, sprite), index) is not { } rsi
+            || !rsi.TryGetState(state, out var rsiState))
+            return;
+
+        // The animation only starts on its next update, so this keeps the last state from flashing for a frame first
+        _sprite.LayerSetRsiState((host, sprite), index, state);
+
+        var animation = new Animation
+        {
+            Length = TimeSpan.FromSeconds(rsiState.AnimationLength),
+            AnimationTracks =
+            {
+                new AnimationTrackSpriteFlick
+                {
+                    LayerKey = LayerKey,
+                    KeyFrames = { new AnimationTrackSpriteFlick.KeyFrame(new RSI.StateId(state), 0f) },
+                },
+            },
+        };
+
+        _animation.Play(host, animation, AnimationKey);
+    }
 
     public override void FrameUpdate(float frameTime)
     {
         base.FrameUpdate(frameTime);
 
-        var pumps = EntityQueryEnumerator<SymbioteChemicalPumpHostComponent, SpriteComponent>();
-        while (pumps.MoveNext(out var uid, out var pump, out var sprite))
+        // The pump beats whenever it swells, so the sound always matches what it looks like
+        var query = EntityQueryEnumerator<SymbioteChemicalPumpHostComponent, SpriteComponent>();
+        while (query.MoveNext(out var uid, out var pump, out var sprite))
         {
-            var visuals = EnsureComp<SymbioteChemicalPumpVisualsComponent>(uid);
-            UpdatePump((uid, pump, sprite, visuals));
-        }
-
-        // Pumps that are gone, once they're done going away here too, since this client may have seen them go late
-        var stale = EntityQueryEnumerator<SymbioteChemicalPumpVisualsComponent, SpriteComponent>();
-        while (stale.MoveNext(out var uid, out var visuals, out var sprite))
-        {
-            if (HasComp<SymbioteChemicalPumpHostComponent>(uid))
+            if (GetState(uid) != SymbioteChemicalPumpState.Active
+                || !_sprite.TryGetLayer((uid, sprite), LayerKey, out var layer, false))
+            {
+                pump.LastFrame = -1;
                 continue;
-
-            if (visuals.EndStart is { } endStart
-                && _sprite.TryGetLayer((uid, sprite), LayerKey, out var layer, false)
-                && _sprite.LayerGetEffectiveRsi((uid, sprite), LayerKey, layer.State) is { } rsi
-                && ShowOnce((uid, sprite), layer, rsi, visuals.EndState, (float)(_timing.CurTime - endStart).TotalSeconds))
-                continue;
-
-            foreach (var key in visuals.RevealedLayers)
-            {
-                _sprite.RemoveLayer((uid, sprite), key);
             }
 
-            RemCompDeferred<SymbioteChemicalPumpVisualsComponent>(uid);
+            var frame = layer.AnimationFrame;
+            if (frame == pump.BeatFrame && pump.LastFrame != frame)
+                _audio.PlayEntity(pump.BeatSound, Filter.Local(), uid, false);
+
+            pump.LastFrame = frame;
         }
-    }
-
-    private void UpdatePump(Entity<SymbioteChemicalPumpHostComponent, SpriteComponent, SymbioteChemicalPumpVisualsComponent> ent)
-    {
-        var (uid, pump, sprite, visuals) = ent;
-        if (pump.Sprite is not SpriteSpecifier.Rsi { RsiState: var pumpState } pumpSprite)
-            return;
-
-        if (!_sprite.LayerMapTryGet((uid, sprite), LayerKey, out var index, false))
-            index = AddLayer(ent, pumpSprite);
-
-        if (!_sprite.TryGetLayer((uid, sprite), index, out var layer, false)
-            || _sprite.LayerGetEffectiveRsi((uid, sprite), index) is not { } rsi)
-            return;
-
-        var now = _timing.CurTime;
-
-        // A new pump, or the first time this client sees one.
-        // It's drawn from when it was first seen, so one learned about late still plays all of emerging, just a bit later.
-        if (visuals.PumpStart != pump.StartTime)
-        {
-            visuals.PumpStart = pump.StartTime;
-            visuals.EmergeStart = now - pump.StartTime < LateEmerge ? now : pump.StartTime;
-            visuals.EndStart = null;
-            visuals.EndState = null;
-        }
-
-        // Going away, like retracting or bursting, also from when this client first saw it
-        if (pump.EndStart != null)
-        {
-            if (visuals.EndStart == null)
-            {
-                visuals.EndStart = now;
-                visuals.EndState = pump.EndState;
-            }
-
-            ShowOnce((uid, sprite), layer, rsi, visuals.EndState, (float)(now - visuals.EndStart.Value).TotalSeconds);
-            visuals.LastFrame = -1;
-            return;
-        }
-
-        // Back to active, like when this client predicted it going away and the server disagreed
-        visuals.EndStart = null;
-        visuals.EndState = null;
-
-        var sinceStart = (float)(now - visuals.EmergeStart).TotalSeconds;
-        var emergeLength = 0f;
-
-        // Emerging
-        if (pump.EmergeState is { } emerge && rsi.TryGetState(emerge, out var emergeState))
-        {
-            emergeLength = emergeState.AnimationLength;
-
-            if (sinceStart < emergeLength)
-            {
-                Show((uid, sprite), layer, emerge, sinceStart);
-                visuals.LastFrame = -1;
-                return;
-            }
-        }
-
-        // Beating, in time with when it finished emerging
-        if (!rsi.TryGetState(pumpState, out var state) || state.AnimationLength <= 0f)
-            return;
-
-        Show((uid, sprite), layer, pumpState, (sinceStart - emergeLength) % state.AnimationLength);
-
-        var frame = layer.AnimationFrame;
-        if (frame == pump.BeatFrame && visuals.LastFrame != frame)
-            _audio.PlayEntity(pump.BeatSound, Filter.Local(), uid, false);
-
-        visuals.LastFrame = frame;
-    }
-
-    /// <summary>
-    /// Shows a state on the pump's layer at a set point in its animation.
-    /// </summary>
-    private void Show(Entity<SpriteComponent> sprite, SpriteComponent.Layer layer, string state, float time)
-    {
-        if (layer.State != state)
-            _sprite.LayerSetRsiState(layer, state);
-
-        _sprite.LayerSetAutoAnimated(layer, false);
-        _sprite.LayerSetAnimationTime(layer, time);
-        _sprite.LayerSetVisible(layer, true);
-    }
-
-    /// <summary>
-    /// Shows a state that plays once, hiding the layer when it's done instead of looping.
-    /// </summary>
-    /// <returns>Whether it's still playing.</returns>
-    private bool ShowOnce(Entity<SpriteComponent> sprite, SpriteComponent.Layer layer, RSI rsi, string? state, float time)
-    {
-        if (state == null || !rsi.TryGetState(state, out var rsiState) || time >= rsiState.AnimationLength)
-        {
-            _sprite.LayerSetVisible(layer, false);
-            return false;
-        }
-
-        Show(sprite, layer, state, time);
-        return true;
     }
 
     /// <summary>
     /// Adds the pump's layer, placed and shaped for the host's body.
     /// </summary>
-    /// <param name="ent">The host.</param>
+    /// <param name="host">The host.</param>
+    /// <param name="sprite">The host's sprite.</param>
     /// <param name="pump">What the pump looks like.</param>
     /// <returns>The index of the pump's layer.</returns>
-    private int AddLayer(Entity<SymbioteChemicalPumpHostComponent, SpriteComponent, SymbioteChemicalPumpVisualsComponent> ent, SpriteSpecifier pump)
+    private int AddLayer(EntityUid host, SpriteComponent sprite, SpriteSpecifier pump)
     {
-        var (uid, _, spriteComp, visuals) = ent;
-        var sprite = (uid, spriteComp);
-
         // Anything without that layer, like a body with different layers, just gets it on top of everything
-        int? insertAt = _sprite.LayerMapTryGet(sprite, NextSlot, out var nextSlot, false) ? nextSlot : null;
-        var index = _sprite.AddLayer(sprite, pump, insertAt);
-        _sprite.LayerMapSet(sprite, LayerKey, index);
-        visuals.RevealedLayers.Add(LayerKey);
+        int? insertAt = _sprite.LayerMapTryGet((host, sprite), NextSlot, out var nextSlot, false) ? nextSlot : null;
+        var index = _sprite.AddLayer((host, sprite), pump, insertAt);
+        _sprite.LayerMapSet((host, sprite), LayerKey, index);
 
         // Drawn for a human chest, then moved and warped onto the host's body shape the same way their armor is,
         // so it stays on the upper chest of shorter or differently shaped species
-        if (TryComp<InventoryComponent>(uid, out var inventory))
+        if (TryComp<InventoryComponent>(host, out var inventory))
         {
-            if (_inventory.TryGetSlot(uid, Slot, out var slot, inventory))
-                _sprite.LayerSetOffset(sprite, index, slot.Offset);
+            if (_inventory.TryGetSlot(host, Slot, out var slot, inventory))
+                _sprite.LayerSetOffset((host, sprite), index, slot.Offset);
 
-            if (GetDisplacement(uid, inventory) is { } displacement)
-                _displacement.TryAddDisplacement(displacement, spriteComp, index, LayerKey, visuals.RevealedLayers);
+            // The pump stays on the host for good, so its layers never need removing and don't have to be kept track of
+            if (GetDisplacement(host, inventory) is { } displacement)
+                _displacement.TryAddDisplacement(displacement, sprite, index, LayerKey, new HashSet<string>());
         }
 
         // The displacement map goes in front of it, which moves it up
-        return _sprite.LayerMapGet(sprite, LayerKey);
+        return _sprite.LayerMapGet((host, sprite), LayerKey);
     }
 
     /// <summary>
