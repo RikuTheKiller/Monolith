@@ -108,6 +108,7 @@
   components:
   - type: Symbiote
     chemicals: 300
+    chemicalRegen: 100
   - type: ActionGrant
     actions:
     - ActionSymbioteDebugBond # Added to the parent's actions
