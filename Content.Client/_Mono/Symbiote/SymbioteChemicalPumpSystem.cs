@@ -15,8 +15,9 @@ namespace Content.Client._Mono.Symbiote;
 
 /// <summary>
 /// Draws the Chemical Pump on its host and plays its beat.
-/// Everything is worked out from the pump's networked times once per frame, after prediction has settled,
-/// so prediction removing and re-adding the pump, or anyone seeing the host late, can't make it play twice or out of time.
+/// Worked out once per frame, after prediction has settled, so prediction removing and re-adding the pump can't make it replay.
+/// Animations play from when this client first saw them, so ones it predicted play right on time,
+/// and ones it only learns about from the server play in full, just a bit later.
 /// </summary>
 public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSystem
 {
@@ -38,6 +39,11 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
     /// </summary>
     private const string NextSlot = "eyes";
 
+    /// <summary>
+    /// How late a client can first see a pump and still see it emerge. Any later and it was there all along, like walking up to the host.
+    /// </summary>
+    private static readonly TimeSpan LateEmerge = TimeSpan.FromSeconds(1);
+
     public override void FrameUpdate(float frameTime)
     {
         base.FrameUpdate(frameTime);
@@ -49,11 +55,17 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
             UpdatePump((uid, pump, sprite, visuals));
         }
 
-        // Pumps that are gone
+        // Pumps that are gone, once they're done going away here too, since this client may have seen them go late
         var stale = EntityQueryEnumerator<SymbioteChemicalPumpVisualsComponent, SpriteComponent>();
         while (stale.MoveNext(out var uid, out var visuals, out var sprite))
         {
             if (HasComp<SymbioteChemicalPumpHostComponent>(uid))
+                continue;
+
+            if (visuals.EndStart is { } endStart
+                && _sprite.TryGetLayer((uid, sprite), LayerKey, out var layer, false)
+                && _sprite.LayerGetEffectiveRsi((uid, sprite), LayerKey, layer.State) is { } rsi
+                && ShowOnce((uid, sprite), layer, rsi, visuals.EndState, (float)(_timing.CurTime - endStart).TotalSeconds))
                 continue;
 
             foreach (var key in visuals.RevealedLayers)
@@ -80,15 +92,35 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
 
         var now = _timing.CurTime;
 
-        // Going away, like retracting or bursting
-        if (pump.EndStart is { } endStart)
+        // A new pump, or the first time this client sees one.
+        // It's drawn from when it was first seen, so one learned about late still plays all of emerging, just a bit later.
+        if (visuals.PumpStart != pump.StartTime)
         {
-            ShowOnce((uid, sprite), layer, rsi, pump.EndState, (float)(now - endStart).TotalSeconds);
+            visuals.PumpStart = pump.StartTime;
+            visuals.EmergeStart = now - pump.StartTime < LateEmerge ? now : pump.StartTime;
+            visuals.EndStart = null;
+            visuals.EndState = null;
+        }
+
+        // Going away, like retracting or bursting, also from when this client first saw it
+        if (pump.EndStart != null)
+        {
+            if (visuals.EndStart == null)
+            {
+                visuals.EndStart = now;
+                visuals.EndState = pump.EndState;
+            }
+
+            ShowOnce((uid, sprite), layer, rsi, visuals.EndState, (float)(now - visuals.EndStart.Value).TotalSeconds);
             visuals.LastFrame = -1;
             return;
         }
 
-        var sinceStart = (float)(now - pump.StartTime).TotalSeconds;
+        // Back to active, like when this client predicted it going away and the server disagreed
+        visuals.EndStart = null;
+        visuals.EndState = null;
+
+        var sinceStart = (float)(now - visuals.EmergeStart).TotalSeconds;
         var emergeLength = 0f;
 
         // Emerging
@@ -104,7 +136,7 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
             }
         }
 
-        // Beating, in time with when it finished emerging, so everyone sees and hears the same beat
+        // Beating, in time with when it finished emerging
         if (!rsi.TryGetState(pumpState, out var state) || state.AnimationLength <= 0f)
             return;
 
@@ -133,15 +165,17 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
     /// <summary>
     /// Shows a state that plays once, hiding the layer when it's done instead of looping.
     /// </summary>
-    private void ShowOnce(Entity<SpriteComponent> sprite, SpriteComponent.Layer layer, RSI rsi, string? state, float time)
+    /// <returns>Whether it's still playing.</returns>
+    private bool ShowOnce(Entity<SpriteComponent> sprite, SpriteComponent.Layer layer, RSI rsi, string? state, float time)
     {
         if (state == null || !rsi.TryGetState(state, out var rsiState) || time >= rsiState.AnimationLength)
         {
             _sprite.LayerSetVisible(layer, false);
-            return;
+            return false;
         }
 
         Show(sprite, layer, state, time);
+        return true;
     }
 
     /// <summary>

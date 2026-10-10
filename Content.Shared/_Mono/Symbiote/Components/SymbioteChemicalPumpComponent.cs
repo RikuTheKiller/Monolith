@@ -51,7 +51,7 @@ public sealed partial class SymbioteChemicalPumpComponent : Component
     /// The server can't read sprites, so it has to be given here.
     /// </summary>
     [DataField]
-    public TimeSpan BurstDuration = TimeSpan.FromSeconds(0.55);
+    public TimeSpan BurstDuration = TimeSpan.FromSeconds(0.85);
 
     /// <summary>
     /// The sound of the pump emerging.
