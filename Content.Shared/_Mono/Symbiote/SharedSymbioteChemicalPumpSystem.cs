@@ -1,31 +1,35 @@
 using Content.Shared._Mono.Symbiote.Components;
+using Content.Shared.Actions;
 using Content.Shared.Atmos.Rotting;
+using Content.Shared.Body.Systems;
 using Content.Shared.Chemistry.EntitySystems;
 using Content.Shared.Damage;
 using Content.Shared.Damage.Prototypes;
+using Content.Shared.FixedPoint;
 using Content.Shared.Mobs;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Traits.Assorted;
 using Robust.Shared.Audio;
-using Robust.Shared.Audio.Systems;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
 
 namespace Content.Shared._Mono.Symbiote;
 
 /// <summary>
-/// Heals the host while Chemical Pump is active, and revives them if it can.
-/// Predicted, apart from restoring blood and whatever the server does about the pump's health.
+/// Heals the host while Chemical Pump is active, revives them if it can, and wears the pump down as the host gets hit.
+/// Predicted by anyone who has the state for it, apart from restoring blood and bringing back ghosts.
 /// </summary>
 public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
 {
     [Dependency] private IGameTiming _timing = default!;
-    [Dependency] private SharedAudioSystem _audio = default!;
+    [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private DamageableSystem _damageable = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private MobThresholdSystem _mobThreshold = default!;
+    [Dependency] private SharedActionsSystem _actions = default!;
     [Dependency] private SharedRottingSystem _rotting = default!;
     [Dependency] private SharedSolutionContainerSystem _solution = default!;
+    [Dependency] private SharedSymbioteSystem _symbiote = default!;
 
     public override void Initialize()
     {
@@ -33,6 +37,9 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
 
         SubscribeLocalEvent<SymbioteChemicalPumpComponent, SymbioteAbilityToggledEvent>(OnToggled);
         SubscribeLocalEvent<SymbioteChemicalPumpComponent, SymbioteAbilityUpdateEvent>(OnUpdate);
+
+        // After the body has decided whether the hit was evaded
+        SubscribeLocalEvent<SymbioteHostComponent, TryChangePartDamageEvent>(OnHostTryChangePartDamage, after: new[] { typeof(SharedBodySystem) });
     }
 
     public override void Update(float frameTime)
@@ -54,12 +61,12 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
         if (!args.Active)
         {
             // Retracts, unless it already started bursting
-            End(args.Host, ent.Comp.RetractState, ent.Comp.RetractDuration, ent.Comp.RetractSound, args.Symbiote);
+            End(args.Host, ent.Comp.RetractState, ent.Comp.RetractDuration, ent.Comp.RetractSound);
             return;
         }
 
         // A fresh pump every time
-        ent.Comp.Health = ent.Comp.MaxHealth;
+        SetHealth(ent, ent.Comp.MaxHealth);
 
         // One that's still going away gets replaced, so the new one emerges from scratch
         RemComp<SymbioteChemicalPumpHostComponent>(args.Host);
@@ -70,24 +77,77 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
             Sprite = ent.Comp.Sprite,
             EmergeState = ent.Comp.EmergeState,
             StartTime = _timing.CurTime,
+            EmergeSound = ent.Comp.EmergeSound,
             BeatSound = ent.Comp.BeatSound,
             BeatFrame = ent.Comp.BeatFrame,
         });
+    }
 
-        _audio.PlayPredicted(ent.Comp.EmergeSound, args.Host, args.Symbiote);
+    /// <summary>
+    /// How much health the pump has right now, after regenerating since it was last hit.
+    /// </summary>
+    public float GetHealth(SymbioteChemicalPumpComponent pump)
+    {
+        var regenerated = pump.HealthRegen * (float)(_timing.CurTime - pump.HealthTime).TotalSeconds;
+        return MathF.Min(pump.Health + regenerated, pump.MaxHealth);
+    }
+
+    private void SetHealth(Entity<SymbioteChemicalPumpComponent> ent, float health)
+    {
+        ent.Comp.Health = health;
+        ent.Comp.HealthTime = _timing.CurTime;
+        Dirty(ent);
+    }
+
+    private void OnHostTryChangePartDamage(Entity<SymbioteHostComponent> ent, ref TryChangePartDamageEvent args)
+    {
+        if (args.Evaded || args.Cancelled || ent.Comp.Symbiote is not { } symbiote)
+            return;
+
+        foreach (var (actionUid, _) in _actions.GetActions(symbiote))
+        {
+            if (!TryComp<SymbioteChemicalPumpComponent>(actionUid, out var pump)
+                || !TryComp<SymbioteAbilityComponent>(actionUid, out var ability)
+                || !_symbiote.IsAbilityActive((actionUid, ability)))
+                continue;
+
+            // The pump sits on top of the host's chest, outside their armor, so it takes the hit before any resistances do
+            var health = GetHealth(pump) - GetPhysicalDamage(pump, args.Damage);
+            SetHealth((actionUid, pump), health);
+            if (health > 0f)
+                continue;
+
+            Burst((actionUid, pump), ent);
+
+            if (TryComp<SymbioteComponent>(symbiote, out var symbioteComp))
+                _symbiote.DeactivateAbility((symbiote, symbioteComp), (actionUid, ability));
+        }
+    }
+
+    private float GetPhysicalDamage(SymbioteChemicalPumpComponent pump, DamageSpecifier damage)
+    {
+        var physical = 0f;
+        foreach (var groupId in pump.PhysicalGroups)
+        {
+            var group = _proto.Index(groupId);
+            foreach (var type in group.DamageTypes)
+            {
+                if (damage.DamageDict.TryGetValue(type, out var value) && value > FixedPoint2.Zero)
+                    physical += value.Float();
+            }
+        }
+
+        return physical;
     }
 
     /// <summary>
     /// Tears the pump apart instead of letting it retract, for when it runs out of health.
     /// Has to happen before the ability ends, since ending it would start it retracting.
-    /// Nobody predicts it, so everyone hears it from the server.
     /// </summary>
-    /// <param name="ent">The pump ability.</param>
-    /// <param name="host">The host the pump is on.</param>
-    protected void Burst(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
+    private void Burst(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
     {
         if (ent.Comp.BurstState is { } burst)
-            End(host, burst, ent.Comp.BurstDuration, ent.Comp.BurstSound, null);
+            End(host, burst, ent.Comp.BurstDuration, ent.Comp.BurstSound);
     }
 
     /// <summary>
@@ -97,8 +157,7 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     /// <param name="state">The state to play as it goes away. Without one, it's removed right away.</param>
     /// <param name="duration">How long the state plays for.</param>
     /// <param name="sound">The sound of it going away.</param>
-    /// <param name="user">Whoever predicts it going away and hears the sound already, if anyone.</param>
-    private void End(EntityUid host, string? state, TimeSpan duration, SoundSpecifier? sound, EntityUid? user)
+    private void End(EntityUid host, string? state, TimeSpan duration, SoundSpecifier? sound)
     {
         if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump) || pump.EndTime != null)
             return;
@@ -110,23 +169,14 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
         }
 
         pump.EndState = state;
+        pump.EndStart = _timing.CurTime;
         pump.EndTime = _timing.CurTime + duration;
+        pump.EndSound = sound;
         Dirty(host, pump);
-        _audio.PlayPredicted(sound, host, user);
-        OnEnding((host, pump));
-    }
-
-    /// <summary>
-    /// Called when the pump starts going away, since changes the client predicts itself don't come with a new state.
-    /// </summary>
-    protected virtual void OnEnding(Entity<SymbioteChemicalPumpHostComponent> ent)
-    {
     }
 
     private void OnUpdate(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityUpdateEvent args)
     {
-        ent.Comp.Health = MathF.Min(ent.Comp.Health + ent.Comp.HealthRegen * args.Seconds, ent.Comp.MaxHealth);
-
         Heal(ent, args.Host, ent.Comp.Healing * args.Seconds);
         TryRevive(args.Host);
     }

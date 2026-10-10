@@ -1,5 +1,6 @@
 using Content.Shared.Damage.Prototypes;
 using Robust.Shared.Audio;
+using Robust.Shared.GameStates;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Utility;
 
@@ -10,7 +11,7 @@ namespace Content.Shared._Mono.Symbiote.Components;
 /// The pump sits on top of the host's chest with its own health, taking any physical damage the host gets hit with before their armor does.
 /// The ability ends if its health runs out.
 /// </summary>
-[RegisterComponent]
+[RegisterComponent, NetworkedComponent, AutoGenerateComponentState, AutoGenerateComponentPause]
 public sealed partial class SymbioteChemicalPumpComponent : Component
 {
     /// <summary>
@@ -120,10 +121,17 @@ public sealed partial class SymbioteChemicalPumpComponent : Component
     public float HealthRegen = 10f;
 
     /// <summary>
-    /// How much health the pump has left. Starts fresh every time the ability activates.
+    /// How much health the pump had at <see cref="HealthTime"/>, before regenerating since then.
+    /// Kept this way so it only changes when the pump is hit, and anyone can work out how much it has now.
     /// </summary>
-    [ViewVariables]
+    [DataField, AutoNetworkedField]
     public float Health;
+
+    /// <summary>
+    /// When the pump had <see cref="Health"/>.
+    /// </summary>
+    [DataField, AutoNetworkedField, AutoPausedField]
+    public TimeSpan HealthTime;
 }
 
 /// <summary>

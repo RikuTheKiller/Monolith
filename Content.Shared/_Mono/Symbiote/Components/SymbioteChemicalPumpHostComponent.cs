@@ -31,6 +31,12 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     public TimeSpan StartTime;
 
     /// <summary>
+    /// The sound of the pump emerging.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public SoundSpecifier? EmergeSound;
+
+    /// <summary>
     /// The sound of one beat.
     /// </summary>
     [DataField, AutoNetworkedField]
@@ -49,18 +55,20 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     public string? EndState;
 
     /// <summary>
+    /// When the pump started going away. Null while it's still active.
+    /// </summary>
+    [DataField, AutoNetworkedField, AutoPausedField]
+    public TimeSpan? EndStart;
+
+    /// <summary>
     /// When the pump is done going away and gets removed. Null while it's still active.
     /// </summary>
     [DataField, AutoNetworkedField, AutoPausedField]
     public TimeSpan? EndTime;
 
     /// <summary>
-    /// Client-only. Every sprite layer added to draw the pump, like the displacement map fitting it to the host's body.
+    /// The sound of the pump going away, like it retracting or bursting.
     /// </summary>
-    public readonly HashSet<string> RevealedLayers = new();
-
-    /// <summary>
-    /// Client-only. The frame the pump was on last time it was checked, so it beats once when it reaches the beat frame.
-    /// </summary>
-    public int LastFrame = -1;
+    [DataField, AutoNetworkedField]
+    public SoundSpecifier? EndSound;
 }
