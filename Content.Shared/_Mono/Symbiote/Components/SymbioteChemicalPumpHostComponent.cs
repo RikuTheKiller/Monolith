@@ -5,7 +5,7 @@ namespace Content.Shared._Mono.Symbiote.Components;
 
 /// <summary>
 /// A host with a Chemical Pump on their chest, drawn on top of whatever they're wearing.
-/// Stays while the pump retracts after the ability ends.
+/// Stays while the pump goes away after the ability ends, by retracting or bursting.
 /// </summary>
 [RegisterComponent, NetworkedComponent, AutoGenerateComponentState(true), AutoGenerateComponentPause]
 [Access(typeof(SharedSymbioteChemicalPumpSystem))]
@@ -30,16 +30,16 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     public TimeSpan StartTime;
 
     /// <summary>
-    /// The state that plays once as the pump retracts, if any.
+    /// The state that plays once as the pump goes away, like it retracting or bursting.
     /// </summary>
     [DataField, AutoNetworkedField]
-    public string? RetractState;
+    public string? EndState;
 
     /// <summary>
-    /// When the pump finishes retracting and goes away. Null while it's still active.
+    /// When the pump is done going away and gets removed. Null while it's still active.
     /// </summary>
     [DataField, AutoNetworkedField, AutoPausedField]
-    public TimeSpan? RetractEnd;
+    public TimeSpan? EndTime;
 
     /// <summary>
     /// Client-only. Every sprite layer added to draw the pump, like the displacement map fitting it to the host's body.

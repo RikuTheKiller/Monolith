@@ -70,6 +70,8 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
             if (pump.Health > 0f)
                 continue;
 
+            Burst((actionUid, pump), ent);
+
             if (TryComp<SymbioteComponent>(symbiote, out var symbioteComp))
                 _symbiote.DeactivateAbility((symbiote, symbioteComp), (actionUid, ability));
         }

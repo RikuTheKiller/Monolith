@@ -36,12 +36,12 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     {
         base.Update(frameTime);
 
-        // Retracted pumps go away
+        // Pumps that are done retracting or bursting go away
         var curTime = _timing.CurTime;
         var query = EntityQueryEnumerator<SymbioteChemicalPumpHostComponent>();
         while (query.MoveNext(out var uid, out var pump))
         {
-            if (pump.RetractEnd is { } end && curTime >= end)
+            if (pump.EndTime is { } end && curTime >= end)
                 RemCompDeferred<SymbioteChemicalPumpHostComponent>(uid);
         }
     }
@@ -50,14 +50,15 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     {
         if (!args.Active)
         {
-            Retract(ent, args.Host);
+            // Retracts, unless it already started bursting
+            End(args.Host, ent.Comp.RetractState, ent.Comp.RetractDuration);
             return;
         }
 
         // A fresh pump every time
         ent.Comp.Health = ent.Comp.MaxHealth;
 
-        // One that's still retracting gets replaced, so the new one emerges from scratch
+        // One that's still going away gets replaced, so the new one emerges from scratch
         RemComp<SymbioteChemicalPumpHostComponent>(args.Host);
 
         // Set before it's added, so the client already knows what to draw when the component starts up
@@ -66,33 +67,48 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
             Sprite = ent.Comp.Sprite,
             EmergeState = ent.Comp.EmergeState,
             StartTime = _timing.CurTime,
-            RetractState = ent.Comp.RetractState,
         });
     }
 
     /// <summary>
-    /// Starts the pump retracting into the host's chest, after which it goes away.
+    /// Tears the pump apart instead of letting it retract, for when it runs out of health.
+    /// Has to happen before the ability ends, since ending it would start it retracting.
     /// </summary>
-    private void Retract(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
+    /// <param name="ent">The pump ability.</param>
+    /// <param name="host">The host the pump is on.</param>
+    protected void Burst(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
     {
-        if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump) || pump.RetractEnd != null)
+        if (ent.Comp.BurstState is { } burst)
+            End(host, burst, ent.Comp.BurstDuration);
+    }
+
+    /// <summary>
+    /// Starts the pump going away, playing a state once before it's removed.
+    /// </summary>
+    /// <param name="host">The host the pump is on.</param>
+    /// <param name="state">The state to play as it goes away. Without one, it's removed right away.</param>
+    /// <param name="duration">How long the state plays for.</param>
+    private void End(EntityUid host, string? state, TimeSpan duration)
+    {
+        if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump) || pump.EndTime != null)
             return;
 
-        if (pump.RetractState == null)
+        if (state == null)
         {
             RemComp(host, pump);
             return;
         }
 
-        pump.RetractEnd = _timing.CurTime + ent.Comp.RetractDuration;
+        pump.EndState = state;
+        pump.EndTime = _timing.CurTime + duration;
         Dirty(host, pump);
-        OnRetracting((host, pump));
+        OnEnding((host, pump));
     }
 
     /// <summary>
-    /// Called when the pump starts retracting, since changes the client predicts itself don't come with a new state.
+    /// Called when the pump starts going away, since changes the client predicts itself don't come with a new state.
     /// </summary>
-    protected virtual void OnRetracting(Entity<SymbioteChemicalPumpHostComponent> ent)
+    protected virtual void OnEnding(Entity<SymbioteChemicalPumpHostComponent> ent)
     {
     }
 

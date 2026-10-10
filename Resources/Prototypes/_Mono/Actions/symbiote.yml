@@ -87,6 +87,7 @@
       state: pulse
     emergeState: emerge
     retractState: retract
+    burstState: burst
     tiers:
     - effectiveness: 1 # Physical
       types: [ Blunt, Slash, Piercing, Heat, Shock, Cold, Caustic ]
