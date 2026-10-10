@@ -30,13 +30,13 @@ public abstract partial class SharedSymbioteSystem
         var abilityEnt = (args.Action.Owner, ability);
         if (IsAbilityActive(abilityEnt))
         {
-            DeactivateAbility(ent, abilityEnt);
+            DeactivateAbility(ent, abilityEnt, args.Performer);
             args.Handled = true;
             return;
         }
 
         // Not handling a failed activation keeps it from going on cooldown
-        args.Handled = TryActivateAbility(ent, abilityEnt);
+        args.Handled = TryActivateAbility(ent, abilityEnt, args.Performer);
     }
 
     private void OnAbilityPerformed(Entity<SymbioteAbilityComponent> ent, ref ActionPerformedEvent args)
@@ -57,7 +57,10 @@ public abstract partial class SharedSymbioteSystem
     /// <summary>
     /// Activates the ability if the symbiote is bonded and can pay for it.
     /// </summary>
-    public bool TryActivateAbility(Entity<SymbioteComponent> ent, Entity<SymbioteAbilityComponent> ability)
+    /// <param name="ent">The symbiote.</param>
+    /// <param name="ability">The ability to activate.</param>
+    /// <param name="user">Whoever's input activated it, if anyone.</param>
+    public bool TryActivateAbility(Entity<SymbioteComponent> ent, Entity<SymbioteAbilityComponent> ability, EntityUid? user = null)
     {
         if (IsAbilityActive(ability) || ent.Comp.Host is not { } host)
             return false;
@@ -68,19 +71,22 @@ public abstract partial class SharedSymbioteSystem
             return false;
         }
 
-        SetAbilityActive(ent, ability, host, true);
+        SetAbilityActive(ent, ability, host, true, user);
         return true;
     }
 
     /// <summary>
     /// Deactivates the ability and starts its cooldown.
     /// </summary>
-    public void DeactivateAbility(Entity<SymbioteComponent> ent, Entity<SymbioteAbilityComponent> ability)
+    /// <param name="ent">The symbiote.</param>
+    /// <param name="ability">The ability to deactivate.</param>
+    /// <param name="user">Whoever's input deactivated it, if anyone.</param>
+    public void DeactivateAbility(Entity<SymbioteComponent> ent, Entity<SymbioteAbilityComponent> ability, EntityUid? user = null)
     {
         if (!IsAbilityActive(ability) || ent.Comp.Host is not { } host)
             return;
 
-        SetAbilityActive(ent, ability, host, false);
+        SetAbilityActive(ent, ability, host, false, user);
     }
 
     public void DeactivateAllAbilities(Entity<SymbioteComponent> ent)
@@ -92,7 +98,7 @@ public abstract partial class SharedSymbioteSystem
         }
     }
 
-    private void SetAbilityActive(Entity<SymbioteComponent> ent, Entity<SymbioteAbilityComponent> ability, EntityUid host, bool active)
+    private void SetAbilityActive(Entity<SymbioteComponent> ent, Entity<SymbioteAbilityComponent> ability, EntityUid host, bool active, EntityUid? user)
     {
         // The action being toggled on is what makes the ability active
         _actions.SetToggled(ability, active);
@@ -102,7 +108,7 @@ public abstract partial class SharedSymbioteSystem
         if (!active)
             _actions.SetCooldown(ability, ability.Comp.Cooldown);
 
-        var ev = new SymbioteAbilityToggledEvent(ent, host, active);
+        var ev = new SymbioteAbilityToggledEvent(ent, host, active, user);
         RaiseLocalEvent(ability, ref ev);
     }
 

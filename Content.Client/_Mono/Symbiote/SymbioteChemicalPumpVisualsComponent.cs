@@ -19,16 +19,4 @@ public sealed partial class SymbioteChemicalPumpVisualsComponent : Component
     /// </summary>
     [ViewVariables]
     public int LastFrame = -1;
-
-    /// <summary>
-    /// When the pump that last played its emerging sound started, so it plays once per pump.
-    /// </summary>
-    [ViewVariables]
-    public TimeSpan? EmergeSoundFor;
-
-    /// <summary>
-    /// When the pump that last played the sound of it going away started going away, so it plays once per pump.
-    /// </summary>
-    [ViewVariables]
-    public TimeSpan? EndSoundFor;
 }

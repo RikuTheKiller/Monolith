@@ -31,12 +31,6 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     public TimeSpan StartTime;
 
     /// <summary>
-    /// The sound of the pump emerging.
-    /// </summary>
-    [DataField, AutoNetworkedField]
-    public SoundSpecifier? EmergeSound;
-
-    /// <summary>
     /// The sound of one beat.
     /// </summary>
     [DataField, AutoNetworkedField]
@@ -65,10 +59,4 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     /// </summary>
     [DataField, AutoNetworkedField, AutoPausedField]
     public TimeSpan? EndTime;
-
-    /// <summary>
-    /// The sound of the pump going away, like it retracting or bursting.
-    /// </summary>
-    [DataField, AutoNetworkedField]
-    public SoundSpecifier? EndSound;
 }

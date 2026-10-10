@@ -10,6 +10,8 @@ using Content.Shared.Mobs;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Traits.Assorted;
 using Robust.Shared.Audio;
+using Robust.Shared.Audio.Systems;
+using Robust.Shared.Network;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
 
@@ -22,6 +24,8 @@ namespace Content.Shared._Mono.Symbiote;
 public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
 {
     [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private INetManager _net = default!;
+    [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private DamageableSystem _damageable = default!;
     [Dependency] private MobStateSystem _mobState = default!;
@@ -61,7 +65,7 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
         if (!args.Active)
         {
             // Retracts, unless it already started bursting
-            End(args.Host, ent.Comp.RetractState, ent.Comp.RetractDuration, ent.Comp.RetractSound);
+            End(args.Host, ent.Comp.RetractState, ent.Comp.RetractDuration, ent.Comp.RetractSound, args.User);
             return;
         }
 
@@ -77,10 +81,27 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
             Sprite = ent.Comp.Sprite,
             EmergeState = ent.Comp.EmergeState,
             StartTime = _timing.CurTime,
-            EmergeSound = ent.Comp.EmergeSound,
             BeatSound = ent.Comp.BeatSound,
             BeatFrame = ent.Comp.BeatFrame,
         });
+
+        PlaySound(ent.Comp.EmergeSound, args.Host, args.User);
+    }
+
+    /// <summary>
+    /// Plays a sound once, since sounds can't be rolled back when prediction replays.
+    /// If someone's input caused it, their client predicts it and the server plays it for everyone else.
+    /// Otherwise every client might predict it at once, so only the server plays it.
+    /// </summary>
+    /// <param name="sound">The sound to play.</param>
+    /// <param name="source">Where it plays from.</param>
+    /// <param name="user">Whoever's input caused it, if anyone.</param>
+    private void PlaySound(SoundSpecifier? sound, EntityUid source, EntityUid? user)
+    {
+        if (user != null)
+            _audio.PlayPredicted(sound, source, user);
+        else if (_net.IsServer)
+            _audio.PlayPvs(sound, source);
     }
 
     /// <summary>
@@ -147,7 +168,7 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     private void Burst(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
     {
         if (ent.Comp.BurstState is { } burst)
-            End(host, burst, ent.Comp.BurstDuration, ent.Comp.BurstSound);
+            End(host, burst, ent.Comp.BurstDuration, ent.Comp.BurstSound, null);
     }
 
     /// <summary>
@@ -157,7 +178,8 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     /// <param name="state">The state to play as it goes away. Without one, it's removed right away.</param>
     /// <param name="duration">How long the state plays for.</param>
     /// <param name="sound">The sound of it going away.</param>
-    private void End(EntityUid host, string? state, TimeSpan duration, SoundSpecifier? sound)
+    /// <param name="user">Whoever's input made it go away, if anyone.</param>
+    private void End(EntityUid host, string? state, TimeSpan duration, SoundSpecifier? sound, EntityUid? user)
     {
         if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump) || pump.EndTime != null)
             return;
@@ -171,8 +193,8 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
         pump.EndState = state;
         pump.EndStart = _timing.CurTime;
         pump.EndTime = _timing.CurTime + duration;
-        pump.EndSound = sound;
         Dirty(host, pump);
+        PlaySound(sound, host, user);
     }
 
     private void OnUpdate(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityUpdateEvent args)

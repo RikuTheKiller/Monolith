@@ -14,7 +14,7 @@ using Robust.Shared.Utility;
 namespace Content.Client._Mono.Symbiote;
 
 /// <summary>
-/// Draws the Chemical Pump on its host and plays its sounds.
+/// Draws the Chemical Pump on its host and plays its beat.
 /// Everything is worked out from the pump's networked times once per frame, after prediction has settled,
 /// so prediction removing and re-adding the pump, or anyone seeing the host late, can't make it play twice or out of time.
 /// </summary>
@@ -83,13 +83,6 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
         // Going away, like retracting or bursting
         if (pump.EndStart is { } endStart)
         {
-            if (visuals.EndSoundFor != endStart)
-            {
-                visuals.EndSoundFor = endStart;
-                if (now < pump.EndTime)
-                    _audio.PlayEntity(pump.EndSound, Filter.Local(), uid, false);
-            }
-
             ShowOnce((uid, sprite), layer, rsi, pump.EndState, (float)(now - endStart).TotalSeconds);
             visuals.LastFrame = -1;
             return;
@@ -105,12 +98,6 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
 
             if (sinceStart < emergeLength)
             {
-                if (visuals.EmergeSoundFor != pump.StartTime)
-                {
-                    visuals.EmergeSoundFor = pump.StartTime;
-                    _audio.PlayEntity(pump.EmergeSound, Filter.Local(), uid, false);
-                }
-
                 Show((uid, sprite), layer, emerge, sinceStart);
                 visuals.LastFrame = -1;
                 return;

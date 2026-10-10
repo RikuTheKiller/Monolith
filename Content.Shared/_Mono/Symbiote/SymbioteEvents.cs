@@ -24,8 +24,12 @@ public sealed partial class SymbioteAbilityActionEvent : InstantActionEvent;
 /// <summary>
 /// Raised on an ability's action when it gets activated or deactivated.
 /// </summary>
+/// <param name="Symbiote">The symbiote whose ability it is.</param>
+/// <param name="Host">The symbiote's host.</param>
+/// <param name="Active">Whether it got activated or deactivated.</param>
+/// <param name="User">Whoever's input toggled it, if anyone. Only their client predicts it, which matters for things that can't be rolled back, like sounds.</param>
 [ByRefEvent]
-public readonly record struct SymbioteAbilityToggledEvent(EntityUid Symbiote, EntityUid Host, bool Active);
+public readonly record struct SymbioteAbilityToggledEvent(EntityUid Symbiote, EntityUid Host, bool Active, EntityUid? User);
 
 /// <summary>
 /// Raised on an active ability's action every time the symbiote updates, for whatever it does over time.
