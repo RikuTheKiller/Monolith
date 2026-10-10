@@ -1,4 +1,5 @@
 using Content.Shared.Damage.Prototypes;
+using Robust.Shared.Audio;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Utility;
 
@@ -50,6 +51,36 @@ public sealed partial class SymbioteChemicalPumpComponent : Component
     /// </summary>
     [DataField]
     public TimeSpan BurstDuration = TimeSpan.FromSeconds(0.55);
+
+    /// <summary>
+    /// The sound of the pump emerging.
+    /// </summary>
+    [DataField]
+    public SoundSpecifier? EmergeSound;
+
+    /// <summary>
+    /// The sound of one beat, played every time the sprite's own state reaches <see cref="BeatFrame"/>.
+    /// </summary>
+    [DataField]
+    public SoundSpecifier? BeatSound;
+
+    /// <summary>
+    /// The frame of the sprite's own state that the pump beats on, like where it swells.
+    /// </summary>
+    [DataField]
+    public int BeatFrame;
+
+    /// <summary>
+    /// The sound of the pump retracting.
+    /// </summary>
+    [DataField]
+    public SoundSpecifier? RetractSound;
+
+    /// <summary>
+    /// The sound of the pump bursting apart.
+    /// </summary>
+    [DataField]
+    public SoundSpecifier? BurstSound;
 
     /// <summary>
     /// How much healing the pump has to spend per second, before effectiveness.

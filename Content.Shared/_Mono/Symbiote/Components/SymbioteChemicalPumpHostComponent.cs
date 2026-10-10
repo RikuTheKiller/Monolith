@@ -1,3 +1,4 @@
+using Robust.Shared.Audio;
 using Robust.Shared.GameStates;
 using Robust.Shared.Utility;
 
@@ -30,6 +31,24 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     public TimeSpan StartTime;
 
     /// <summary>
+    /// The sound of the pump emerging.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public SoundSpecifier? EmergeSound;
+
+    /// <summary>
+    /// The sound of one beat.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public SoundSpecifier? BeatSound;
+
+    /// <summary>
+    /// The frame of the sprite's own state that the pump beats on.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public int BeatFrame;
+
+    /// <summary>
     /// The state that plays once as the pump goes away, like it retracting or bursting.
     /// </summary>
     [DataField, AutoNetworkedField]
@@ -42,7 +61,18 @@ public sealed partial class SymbioteChemicalPumpHostComponent : Component
     public TimeSpan? EndTime;
 
     /// <summary>
+    /// The sound of the pump going away, like it retracting or bursting.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public SoundSpecifier? EndSound;
+
+    /// <summary>
     /// Client-only. Every sprite layer added to draw the pump, like the displacement map fitting it to the host's body.
     /// </summary>
     public readonly HashSet<string> RevealedLayers = new();
+
+    /// <summary>
+    /// Client-only. The frame the pump was on last time it was checked, so it beats once when it reaches the beat frame.
+    /// </summary>
+    public int LastFrame = -1;
 }

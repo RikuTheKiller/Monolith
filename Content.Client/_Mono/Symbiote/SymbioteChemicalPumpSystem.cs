@@ -8,6 +8,8 @@ using Content.Shared.Inventory;
 using Robust.Client.Animations;
 using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
+using Robust.Shared.Audio.Systems;
+using Robust.Shared.Player;
 using Robust.Shared.Timing;
 
 namespace Content.Client._Mono.Symbiote;
@@ -16,6 +18,7 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
 {
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private AnimationPlayerSystem _animation = default!;
+    [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private DisplacementMapSystem _displacement = default!;
     [Dependency] private InventorySystem _inventory = default!;
     [Dependency] private SpriteSystem _sprite = default!;
@@ -162,6 +165,29 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
         _animation.Stop(ent.Owner, null, EmergeAnimationKey);
         _sprite.LayerSetRsiState((ent.Owner, ent.Comp2), index, end);
         _animation.Play(ent.Owner, OnceAnimation(end, state.AnimationLength), EndAnimationKey);
+
+        _audio.PlayEntity(ent.Comp1.EndSound, Filter.Local(), ent, false);
+    }
+
+    public override void FrameUpdate(float frameTime)
+    {
+        base.FrameUpdate(frameTime);
+
+        // The pump beats whenever it swells, so the sound always matches what it looks like
+        var query = EntityQueryEnumerator<SymbioteChemicalPumpHostComponent, SpriteComponent>();
+        while (query.MoveNext(out var uid, out var pump, out var sprite))
+        {
+            if (pump.Sprite is not SpriteSpecifier.Rsi { RsiState: var pumpState }
+                || !_sprite.TryGetLayer((uid, sprite), LayerKey, out var layer, false))
+                continue;
+
+            // Only while it's showing its own state, not while it's emerging or going away
+            var frame = layer.State == pumpState ? layer.AnimationFrame : -1;
+            if (frame == pump.BeatFrame && pump.LastFrame != frame)
+                _audio.PlayEntity(pump.BeatSound, Filter.Local(), uid, false);
+
+            pump.LastFrame = frame;
+        }
     }
 
     /// <summary>
@@ -175,6 +201,7 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
         // The animation only starts on its next update, so this keeps the finished pump from flashing for a frame first
         _sprite.LayerSetRsiState((ent.Owner, ent.Comp2), index, emerge);
         _animation.Play(ent.Owner, OnceAnimation(emerge, length), EmergeAnimationKey);
+        _audio.PlayEntity(ent.Comp1.EmergeSound, Filter.Local(), ent, false);
     }
 
     /// <summary>

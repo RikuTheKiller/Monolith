@@ -88,6 +88,18 @@
     emergeState: emerge
     retractState: retract
     burstState: burst
+    emergeSound:
+      path: /Audio/Voice/Slime/slime_squish.ogg
+    beatSound:
+      path: /Audio/_Mono/Effects/Symbiote/heartbeat.ogg
+      params:
+        volume: -4
+        maxDistance: 5
+    beatFrame: 1 # Where it swells
+    retractSound:
+      path: /Audio/Voice/Slime/slime_squish.ogg
+    burstSound:
+      path: /Audio/Effects/gib1.ogg
     tiers:
     - effectiveness: 1 # Physical
       types: [ Blunt, Slash, Piercing, Heat, Shock, Cold, Caustic ]
