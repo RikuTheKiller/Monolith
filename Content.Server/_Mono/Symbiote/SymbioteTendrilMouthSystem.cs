@@ -22,9 +22,6 @@ public sealed partial class SymbioteTendrilMouthSystem : SharedSymbioteTendrilMo
 
     protected override void OnMouthToggled(EntityUid symbiote, EntityUid host, bool active)
     {
-        if (TerminatingOrDeleted(symbiote))
-            return;
-
         _language.UpdateEntityLanguages(symbiote);
 
         // Start off speaking whatever the host was speaking

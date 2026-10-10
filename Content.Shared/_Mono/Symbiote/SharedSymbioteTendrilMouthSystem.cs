@@ -21,9 +21,6 @@ public abstract partial class SharedSymbioteTendrilMouthSystem : EntitySystem
 
     private void OnToggled(Entity<SymbioteTendrilMouthComponent> ent, ref SymbioteAbilityToggledEvent args)
     {
-        if (TerminatingOrDeleted(args.Host))
-            return;
-
         if (args.Active)
         {
             var mouth = EnsureComp<SymbioteTendrilMouthHostComponent>(args.Host);

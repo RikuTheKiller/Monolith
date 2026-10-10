@@ -1,0 +1,37 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "South by RikuTheKiller, touched up with the other directions by Claude",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "pulse",
+            "directions": 4,
+            "delays": [
+                [
+                    0.6,
+                    0.1,
+                    0.1
+                ],
+                [
+                    0.6,
+                    0.1,
+                    0.1
+                ],
+                [
+                    0.6,
+                    0.1,
+                    0.1
+                ],
+                [
+                    0.6,
+                    0.1,
+                    0.1
+                ]
+            ]
+        }
+    ]
+}

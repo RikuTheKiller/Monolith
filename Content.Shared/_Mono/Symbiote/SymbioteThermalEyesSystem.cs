@@ -22,7 +22,7 @@ public sealed class SymbioteThermalEyesSystem : EntitySystem
 
     private void OnToggled(Entity<SymbioteThermalEyesComponent> ent, ref SymbioteAbilityToggledEvent args)
     {
-        if (TerminatingOrDeleted(args.Symbiote) || !TryComp<ThermalVisionComponent>(args.Symbiote, out var vision))
+        if (!TryComp<ThermalVisionComponent>(args.Symbiote, out var vision))
             return;
 
         vision.IsActive = args.Active;

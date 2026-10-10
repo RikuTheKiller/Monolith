@@ -82,6 +82,9 @@
     activationCost: 60
     upkeep: 10
   - type: SymbioteChemicalPump
+    sprite:
+      sprite: _Mono/Mobs/Aliens/Symbiote/chemical_pump.rsi
+      state: pulse
     tiers:
     - effectiveness: 1 # Physical
       types: [ Blunt, Slash, Piercing, Heat, Shock, Cold, Caustic ]

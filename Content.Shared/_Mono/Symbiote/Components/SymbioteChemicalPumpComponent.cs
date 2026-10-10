@@ -1,5 +1,6 @@
 using Content.Shared.Damage.Prototypes;
 using Robust.Shared.Prototypes;
+using Robust.Shared.Utility;
 
 namespace Content.Shared._Mono.Symbiote.Components;
 
@@ -11,6 +12,12 @@ namespace Content.Shared._Mono.Symbiote.Components;
 [RegisterComponent]
 public sealed partial class SymbioteChemicalPumpComponent : Component
 {
+    /// <summary>
+    /// What the pump looks like on the host's chest.
+    /// </summary>
+    [DataField(required: true)]
+    public SpriteSpecifier Sprite = default!;
+
     /// <summary>
     /// How much healing the pump has to spend per second, before effectiveness.
     /// </summary>

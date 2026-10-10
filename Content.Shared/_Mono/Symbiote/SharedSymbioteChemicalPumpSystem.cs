@@ -33,10 +33,17 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
     private void OnToggled(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityToggledEvent args)
     {
         if (!args.Active)
+        {
+            RemComp<SymbioteChemicalPumpHostComponent>(args.Host);
             return;
+        }
 
         // A fresh pump every time
         ent.Comp.Health = ent.Comp.MaxHealth;
+
+        // Set before it's added, so the client already knows what to draw when the component starts up
+        if (!HasComp<SymbioteChemicalPumpHostComponent>(args.Host))
+            AddComp(args.Host, new SymbioteChemicalPumpHostComponent { Sprite = ent.Comp.Sprite });
     }
 
     private void OnUpdate(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityUpdateEvent args)
