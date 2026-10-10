@@ -11,6 +11,7 @@ using Robust.Client.Graphics;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Player;
 using Robust.Shared.Timing;
+using Robust.Shared.Utility;
 
 namespace Content.Client._Mono.Symbiote;
 
@@ -75,8 +76,18 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
 
     private void OnHostAnimationCompleted(Entity<SymbioteChemicalPumpHostComponent> ent, ref AnimationCompletedEvent args)
     {
+        if (!args.Finished)
+            return;
+
+        // Gone as soon as it's done going away, rather than waiting for the server to remove it
+        if (args.Key == EndAnimationKey)
+        {
+            _sprite.LayerSetVisible(ent.Owner, LayerKey, false);
+            return;
+        }
+
         // Playing a state once leaves the layer stuck on it, so go back to the pump's own looping state
-        if (args.Key != EmergeAnimationKey || !args.Finished || ent.Comp.Sprite is not { } pump)
+        if (args.Key != EmergeAnimationKey || ent.Comp.Sprite is not { } pump)
             return;
 
         _sprite.LayerSetSprite(ent.Owner, LayerKey, pump);
@@ -165,8 +176,6 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
         _animation.Stop(ent.Owner, null, EmergeAnimationKey);
         _sprite.LayerSetRsiState((ent.Owner, ent.Comp2), index, end);
         _animation.Play(ent.Owner, OnceAnimation(end, state.AnimationLength), EndAnimationKey);
-
-        _audio.PlayEntity(ent.Comp1.EndSound, Filter.Local(), ent, false);
     }
 
     public override void FrameUpdate(float frameTime)
@@ -201,7 +210,6 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
         // The animation only starts on its next update, so this keeps the finished pump from flashing for a frame first
         _sprite.LayerSetRsiState((ent.Owner, ent.Comp2), index, emerge);
         _animation.Play(ent.Owner, OnceAnimation(emerge, length), EmergeAnimationKey);
-        _audio.PlayEntity(ent.Comp1.EmergeSound, Filter.Local(), ent, false);
     }
 
     /// <summary>

@@ -93,8 +93,7 @@
     beatSound:
       path: /Audio/_Mono/Effects/Symbiote/heartbeat.ogg
       params:
-        volume: -4
-        maxDistance: 5
+        volume: 6
     beatFrame: 1 # Where it swells
     retractSound:
       path: /Audio/Voice/Slime/slime_squish.ogg
