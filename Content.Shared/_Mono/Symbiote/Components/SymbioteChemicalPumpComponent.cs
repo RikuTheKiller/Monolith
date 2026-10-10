@@ -25,6 +25,19 @@ public sealed partial class SymbioteChemicalPumpComponent : Component
     public string? EmergeState;
 
     /// <summary>
+    /// The state in the sprite's RSI that plays once as the pump retracts after the ability ends.
+    /// </summary>
+    [DataField]
+    public string? RetractState;
+
+    /// <summary>
+    /// How long the pump takes to retract, which should match how long the retract state plays for.
+    /// The server can't read sprites, so it has to be given here.
+    /// </summary>
+    [DataField]
+    public TimeSpan RetractDuration = TimeSpan.FromSeconds(0.5);
+
+    /// <summary>
     /// How much healing the pump has to spend per second, before effectiveness.
     /// </summary>
     [DataField]

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Content.Client.DisplacementMap;
 using Content.Shared._Mono.Symbiote;
 using Content.Shared._Mono.Symbiote.Components;
@@ -21,6 +22,7 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
 
     private const string LayerKey = "symbiote-chemical-pump";
     private const string EmergeAnimationKey = "symbiote-chemical-pump-emerge";
+    private const string RetractAnimationKey = "symbiote-chemical-pump-retract";
 
     /// <summary>
     /// The pump sits on top of the host's armor, so it's placed and shaped like their outer clothing.
@@ -55,6 +57,7 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
     private void OnHostShutdown(Entity<SymbioteChemicalPumpHostComponent> ent, ref ComponentShutdown args)
     {
         _animation.Stop(ent.Owner, null, EmergeAnimationKey);
+        _animation.Stop(ent.Owner, null, RetractAnimationKey);
 
         if (!TryComp<SpriteComponent>(ent, out var sprite))
             return;
@@ -77,38 +80,85 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
         _sprite.LayerSetAutoAnimated(ent.Owner, LayerKey, true);
     }
 
+    protected override void OnRetracting(Entity<SymbioteChemicalPumpHostComponent> ent)
+    {
+        UpdateLayer(ent);
+    }
+
     private void UpdateLayer(Entity<SymbioteChemicalPumpHostComponent> ent)
     {
         if (ent.Comp.Sprite is not { } pump || !TryComp<SpriteComponent>(ent, out var sprite))
             return;
 
-        if (_sprite.LayerMapTryGet((ent.Owner, sprite), LayerKey, out var index, false))
-        {
-            // Setting it now would cut the emerging short
-            if (!_animation.HasRunningAnimation(ent.Owner, EmergeAnimationKey))
-                _sprite.LayerSetSprite((ent.Owner, sprite), index, pump);
+        if (!_sprite.LayerMapTryGet((ent.Owner, sprite), LayerKey, out var index, false))
+            index = AddLayer((ent.Owner, ent.Comp, sprite), pump);
 
+        if (ent.Comp.RetractEnd != null)
+        {
+            TryPlayRetract((ent.Owner, ent.Comp, sprite), index);
             return;
         }
 
-        // Anything without that layer, like a body with different layers, just gets it on top of everything
-        int? insertAt = _sprite.LayerMapTryGet((ent.Owner, sprite), NextSlot, out var nextSlot, false) ? nextSlot : null;
-        index = _sprite.AddLayer((ent.Owner, sprite), pump, insertAt);
-        _sprite.LayerMapSet((ent.Owner, sprite), LayerKey, index);
-        ent.Comp.RevealedLayers.Add(LayerKey);
+        // Started again before it finished retracting, which only some clients see as a whole new pump.
+        // Resetting to an older state while predicting it retracting doesn't count, since that pump isn't new.
+        if (ent.Comp.RetractState is { } retract
+            && _sprite.TryGetLayer((ent.Owner, sprite), LayerKey, out var layer, false)
+            && layer.State == retract
+            && ShouldEmerge((ent.Owner, ent.Comp, sprite), index, out _, out _))
+        {
+            _animation.Stop(ent.Owner, null, RetractAnimationKey);
+            TryPlayEmerge((ent.Owner, ent.Comp, sprite), index);
+        }
+    }
 
-        TryPlayEmerge((ent.Owner, ent.Comp, sprite), index);
+    /// <summary>
+    /// Adds the pump's layer, placed and shaped for the host's body, and starts it emerging if it's new.
+    /// </summary>
+    /// <param name="ent">The host.</param>
+    /// <param name="pump">What the pump looks like.</param>
+    /// <returns>The index of the pump's layer.</returns>
+    private int AddLayer(Entity<SymbioteChemicalPumpHostComponent, SpriteComponent> ent, SpriteSpecifier pump)
+    {
+        var sprite = (ent.Owner, ent.Comp2);
+
+        // Anything without that layer, like a body with different layers, just gets it on top of everything
+        int? insertAt = _sprite.LayerMapTryGet(sprite, NextSlot, out var nextSlot, false) ? nextSlot : null;
+        var index = _sprite.AddLayer(sprite, pump, insertAt);
+        _sprite.LayerMapSet(sprite, LayerKey, index);
+        ent.Comp1.RevealedLayers.Add(LayerKey);
+
+        if (ent.Comp1.RetractEnd == null)
+            TryPlayEmerge(ent, index);
 
         // Drawn for a human chest, then moved and warped onto the host's body shape the same way their armor is,
         // so it stays on the upper chest of shorter or differently shaped species
-        if (!TryComp<InventoryComponent>(ent, out var inventory))
+        if (TryComp<InventoryComponent>(ent, out var inventory))
+        {
+            if (_inventory.TryGetSlot(ent.Owner, Slot, out var slot, inventory))
+                _sprite.LayerSetOffset(sprite, index, slot.Offset);
+
+            if (GetDisplacement(ent.Owner, inventory) is { } displacement)
+                _displacement.TryAddDisplacement(displacement, ent.Comp2, index, LayerKey, ent.Comp1.RevealedLayers);
+        }
+
+        // The displacement map goes in front of it, which moves it up
+        return _sprite.LayerMapGet(sprite, LayerKey);
+    }
+
+    /// <summary>
+    /// Plays the pump retracting once. It goes away when it's done, so it's left on the last frame until then.
+    /// </summary>
+    private void TryPlayRetract(Entity<SymbioteChemicalPumpHostComponent, SpriteComponent> ent, int index)
+    {
+        if (_animation.HasRunningAnimation(ent.Owner, RetractAnimationKey)
+            || ent.Comp1.RetractState is not { } retract
+            || _sprite.LayerGetEffectiveRsi((ent.Owner, ent.Comp2), index) is not { } rsi
+            || !rsi.TryGetState(retract, out var state))
             return;
 
-        if (_inventory.TryGetSlot(ent.Owner, Slot, out var slot, inventory))
-            _sprite.LayerSetOffset((ent.Owner, sprite), index, slot.Offset);
-
-        if (GetDisplacement(ent.Owner, inventory) is { } displacement)
-            _displacement.TryAddDisplacement(displacement, sprite, index, LayerKey, ent.Comp.RevealedLayers);
+        _animation.Stop(ent.Owner, null, EmergeAnimationKey);
+        _sprite.LayerSetRsiState((ent.Owner, ent.Comp2), index, retract);
+        _animation.Play(ent.Owner, OnceAnimation(retract, state.AnimationLength), RetractAnimationKey);
     }
 
     /// <summary>
@@ -116,32 +166,56 @@ public sealed class SymbioteChemicalPumpSystem : SharedSymbioteChemicalPumpSyste
     /// </summary>
     private void TryPlayEmerge(Entity<SymbioteChemicalPumpHostComponent, SpriteComponent> ent, int index)
     {
-        if (ent.Comp1.EmergeState is not { } emerge
-            || _sprite.LayerGetEffectiveRsi((ent.Owner, ent.Comp2), index) is not { } rsi
-            || !rsi.TryGetState(emerge, out var state))
-            return;
-
-        var length = TimeSpan.FromSeconds(state.AnimationLength);
-        if (_timing.CurTime - ent.Comp1.StartTime >= length)
+        if (!ShouldEmerge(ent, index, out var emerge, out var length))
             return;
 
         // The animation only starts on its next update, so this keeps the finished pump from flashing for a frame first
         _sprite.LayerSetRsiState((ent.Owner, ent.Comp2), index, emerge);
+        _animation.Play(ent.Owner, OnceAnimation(emerge, length), EmergeAnimationKey);
+    }
 
-        var animation = new Animation
+    /// <summary>
+    /// Whether the pump is new enough that it should still be emerging.
+    /// </summary>
+    /// <param name="ent">The host.</param>
+    /// <param name="index">The index of the pump's layer.</param>
+    /// <param name="emerge">The state that plays as it emerges.</param>
+    /// <param name="length">How long it takes to emerge, in seconds.</param>
+    private bool ShouldEmerge(
+        Entity<SymbioteChemicalPumpHostComponent, SpriteComponent> ent,
+        int index,
+        [NotNullWhen(true)] out string? emerge,
+        out float length)
+    {
+        emerge = ent.Comp1.EmergeState;
+        length = 0f;
+
+        if (emerge == null
+            || _sprite.LayerGetEffectiveRsi((ent.Owner, ent.Comp2), index) is not { } rsi
+            || !rsi.TryGetState(emerge, out var state))
+            return false;
+
+        length = state.AnimationLength;
+        return _timing.CurTime - ent.Comp1.StartTime < TimeSpan.FromSeconds(length);
+    }
+
+    /// <summary>
+    /// Plays a state on the pump's layer once, instead of looping it.
+    /// </summary>
+    private static Animation OnceAnimation(string state, float length)
+    {
+        return new Animation
         {
-            Length = length,
+            Length = TimeSpan.FromSeconds(length),
             AnimationTracks =
             {
                 new AnimationTrackSpriteFlick
                 {
                     LayerKey = LayerKey,
-                    KeyFrames = { new AnimationTrackSpriteFlick.KeyFrame(new RSI.StateId(emerge), 0f) },
+                    KeyFrames = { new AnimationTrackSpriteFlick.KeyFrame(new RSI.StateId(state), 0f) },
                 },
             },
         };
-
-        _animation.Play(ent.Owner, animation, EmergeAnimationKey);
     }
 
     /// <summary>

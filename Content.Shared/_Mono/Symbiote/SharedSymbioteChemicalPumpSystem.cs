@@ -32,27 +32,68 @@ public abstract class SharedSymbioteChemicalPumpSystem : EntitySystem
         SubscribeLocalEvent<SymbioteChemicalPumpComponent, SymbioteAbilityUpdateEvent>(OnUpdate);
     }
 
+    public override void Update(float frameTime)
+    {
+        base.Update(frameTime);
+
+        // Retracted pumps go away
+        var curTime = _timing.CurTime;
+        var query = EntityQueryEnumerator<SymbioteChemicalPumpHostComponent>();
+        while (query.MoveNext(out var uid, out var pump))
+        {
+            if (pump.RetractEnd is { } end && curTime >= end)
+                RemCompDeferred<SymbioteChemicalPumpHostComponent>(uid);
+        }
+    }
+
     private void OnToggled(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityToggledEvent args)
     {
         if (!args.Active)
         {
-            RemComp<SymbioteChemicalPumpHostComponent>(args.Host);
+            Retract(ent, args.Host);
             return;
         }
 
         // A fresh pump every time
         ent.Comp.Health = ent.Comp.MaxHealth;
 
+        // One that's still retracting gets replaced, so the new one emerges from scratch
+        RemComp<SymbioteChemicalPumpHostComponent>(args.Host);
+
         // Set before it's added, so the client already knows what to draw when the component starts up
-        if (!HasComp<SymbioteChemicalPumpHostComponent>(args.Host))
+        AddComp(args.Host, new SymbioteChemicalPumpHostComponent
         {
-            AddComp(args.Host, new SymbioteChemicalPumpHostComponent
-            {
-                Sprite = ent.Comp.Sprite,
-                EmergeState = ent.Comp.EmergeState,
-                StartTime = _timing.CurTime,
-            });
+            Sprite = ent.Comp.Sprite,
+            EmergeState = ent.Comp.EmergeState,
+            StartTime = _timing.CurTime,
+            RetractState = ent.Comp.RetractState,
+        });
+    }
+
+    /// <summary>
+    /// Starts the pump retracting into the host's chest, after which it goes away.
+    /// </summary>
+    private void Retract(Entity<SymbioteChemicalPumpComponent> ent, EntityUid host)
+    {
+        if (!TryComp<SymbioteChemicalPumpHostComponent>(host, out var pump) || pump.RetractEnd != null)
+            return;
+
+        if (pump.RetractState == null)
+        {
+            RemComp(host, pump);
+            return;
         }
+
+        pump.RetractEnd = _timing.CurTime + ent.Comp.RetractDuration;
+        Dirty(host, pump);
+        OnRetracting((host, pump));
+    }
+
+    /// <summary>
+    /// Called when the pump starts retracting, since changes the client predicts itself don't come with a new state.
+    /// </summary>
+    protected virtual void OnRetracting(Entity<SymbioteChemicalPumpHostComponent> ent)
+    {
     }
 
     private void OnUpdate(Entity<SymbioteChemicalPumpComponent> ent, ref SymbioteAbilityUpdateEvent args)
